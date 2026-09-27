@@ -1,20 +1,76 @@
+/* ==========================================================================
+   PIP-BOY 3000 (Mk I) — DESIGN TOKENS
+   --------------------------------------------------------------------------
+   Single source of truth for the device's look. Every component reads from
+   here; nothing hardcodes a phosphor colour or a raw font size.
+   ========================================================================== */
+
 :root {
-  /* Pip-Boy monochrome color (swap to change the whole tint) */
-  --pipboy-color: #1eff00;
-  --pipboy-color-glow: rgba(30, 255, 0, 0.55);
-  --pipboy-color-faint: rgba(30, 255, 0, 0.22);
-  --pipboy-color-deep: rgba(30, 255, 0, 0.07);
+  /* ---- Phosphor ------------------------------------------------------
+     Fallout 3's Pip-Boy is a desaturated yellow-green, NOT matrix green.
+     --pipboy-color is the only colour any component should reference.    */
+  --pipboy-color: #9ece6a;
+  --pipboy-hot: #d8ffb0; /* brightest tier: cursor, active tab, HP full */
+  --pipboy-color-glow: rgba(158, 206, 106, 0.5);
+  --pipboy-color-dim: rgba(158, 206, 106, 0.62);
+  --pipboy-color-subtle: rgba(158, 206, 106, 0.4);
+  --pipboy-color-faint: rgba(158, 206, 106, 0.22);
+  --pipboy-color-deep: rgba(158, 206, 106, 0.08);
 
-  /* Secondary UI contrast tokens — higher luminance for readability on CRT */
-  --pipboy-color-dim: rgba(30, 255, 0, 0.42);
-  --pipboy-color-subtle: rgba(30, 255, 0, 0.32);
+  /* Panel fills, derived from the phosphor so they retint with it */
+  --panel-fill: rgba(158, 206, 106, 0.03);
+  --panel-fill-active: rgba(158, 206, 106, 0.09);
+  --panel-border: rgba(158, 206, 106, 0.26);
 
-  /* Screen background (near-black with a green hint) */
-  --screen-bg: #030b00;
+  /* Screen + page */
+  --screen-bg: #070b05;
+  --page-bg: #0c0f0b;
 
-  /* Page background behind the device */
-  --page-bg: #101216;
+  /* ---- Physical housing (rendered outside the CRT) -------------------- */
+  --case-dark: #171a15;
+  --case-mid: #3a3f36;
+  --case-light: #5a6154;
+  --case-edge: #0a0c09;
+  --case-rust: #4a3a26; /* weathering stain, used sparingly for flavour */
 
-  /* Typography */
-  --font-pipboy: 'Monofonto', 'Courier New', monospace;
+  /* ---- Typography -----------------------------------------------------
+     --u is the base unit. Every size is a multiple of it, so the whole UI
+     scales as one system instead of each tab inventing its own scale.     */
+  --font-pipboy: 'Monofonto', 'Share Tech Mono', 'Courier New', monospace;
+  /* Bumped ~30% from the original clamp(9px, .62vmin + .42vh, 15px): at that
+     size --fs-2xs landed on ~7px, which is unreadable on the panel. The scale
+     below is also compressed at the bottom so the smallest step stays legible
+     instead of collapsing into the noise floor. */
+  --u: clamp(11px, 0.82vmin + 0.55vh, 19px);
+
+  --fs-2xs: calc(var(--u) * 0.7);
+  --fs-xs: calc(var(--u) * 0.85);
+  --fs-sm: calc(var(--u) * 1);
+  --fs-md: calc(var(--u) * 1.2);
+  --fs-lg: calc(var(--u) * 1.5);
+  --fs-xl: calc(var(--u) * 1.95);
+  --fs-2xl: calc(var(--u) * 2.55);
+  --fs-3xl: calc(var(--u) * 3.4);
+
+  /* Wide tracking is the single most Pip-Boy-ish typographic move */
+  --track-tight: 0.06em;
+  --track: 0.14em;
+  --track-wide: 0.24em;
+  --track-max: 0.4em;
+
+  /* ---- Rhythm ---------------------------------------------------------- */
+  --gap-xs: calc(var(--u) * 0.4);
+  --gap-sm: calc(var(--u) * 0.7);
+  --gap: calc(var(--u) * 1.1);
+  --gap-lg: calc(var(--u) * 1.8);
+  --pad: calc(var(--u) * 1.2);
+
+  /* Chamfer: F3 panels have 45° cut corners. This is the signature detail. */
+  --chamfer: calc(var(--u) * 0.75);
+
+  /* ---- Motion ----------------------------------------------------------
+     steps() everywhere: a CRT cannot ease, it snaps.                      */
+  --snap-fast: 90ms steps(2, end);
+  --snap: 160ms steps(3, end);
+  --snap-slow: 320ms steps(6, end);
 }

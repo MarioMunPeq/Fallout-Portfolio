@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrameSequence } from '../../hooks/useFrameSequence'
 import './BootSequence.css'
 
@@ -9,10 +9,27 @@ export interface BootSequenceProps {
   onBootComplete?: () => void
 }
 
+/** Vault-Tec POST lines. The waits are proportional to the run length. */
+const BOOT_LINES: readonly {
+  text: string
+  delay: number
+  kind: 'title' | 'log' | 'ok'
+}[] = [
+  { text: 'ROBCO INDUSTRIES (TM) PIP-BOY 3000', delay: 300, kind: 'title' },
+  { text: 'COPYRIGHT 2247 · ROBOTRON', delay: 340, kind: 'title' },
+  { text: 'POWER ON SELF TEST .................. OK', delay: 380, kind: 'ok' },
+  { text: 'CRT FILAMENT ....................... OK', delay: 340, kind: 'ok' },
+  { text: 'PHOSPHOR COATING .................. OK', delay: 340, kind: 'ok' },
+  { text: 'VAULT-TEC OS 1.4 ................... OK', delay: 380, kind: 'ok' },
+  { text: 'OPERATOR: MUÑOZ PEQUEÑO, M.', delay: 360, kind: 'log' },
+  { text: 'CLEARANCE: VAULT RESIDENT', delay: 340, kind: 'log' },
+  { text: 'MOUNTING /VAULT/ARCHIVE ............', delay: 400, kind: 'log' },
+]
+
 export function BootSequence({
   frames,
-  frameIntervalMs = 180,
-  durationMs,
+  frameIntervalMs = 150,
+  durationMs = 4200,
   onBootComplete,
 }: BootSequenceProps) {
   const frameIndex = useFrameSequence(frames.length, {
@@ -22,48 +39,45 @@ export function BootSequence({
     onComplete: onBootComplete,
   })
 
-  const containerRef = useRef<HTMLDivElement>(null)
-  const frameRef = useRef<HTMLImageElement>(null)
+  const [revealed, setRevealed] = useState(0)
+  const timers = useRef<number[]>([])
 
+  // Reveal the log lines one at a time, spaced by their own delays.
   useEffect(() => {
-    const container = containerRef.current
-    const frame = frameRef.current
-    if (!container || !frame) return
-    const measure = () => {
-      const screen = document.querySelector<HTMLElement>('.screen')
-      const c = container.getBoundingClientRect()
-      const f = frame.getBoundingClientRect()
-      const s = screen?.getBoundingClientRect()
-      console.log(
-        '[BootSequence] screen',
-        s ? `${s.width.toFixed(1)}x${s.height.toFixed(1)}px` : 'n/a',
-        '| container',
-        `${c.width.toFixed(1)}x${c.height.toFixed(1)}px`,
-        '| frame',
-        `${f.width.toFixed(1)}x${f.height.toFixed(1)}px`,
-        '| %width',
-        ((f.width / c.width) * 100).toFixed(1),
-        '| %height',
-        ((f.height / c.height) * 100).toFixed(1),
-      )
+    let elapsed = 0
+    timers.current = BOOT_LINES.map((line, i) => {
+      elapsed += line.delay
+      return window.setTimeout(() => setRevealed(i + 1), elapsed)
+    })
+    return () => {
+      timers.current.forEach(window.clearTimeout)
+      timers.current = []
     }
-    measure()
-    const raf = requestAnimationFrame(measure)
-    return () => cancelAnimationFrame(raf)
   }, [])
 
-  if (frames.length === 0) {
-    return null
-  }
+  const visible = useMemo(
+    () => BOOT_LINES.slice(0, revealed),
+    [revealed],
+  )
+
+  if (frames.length === 0) return null
 
   return (
-    <div className="boot-sequence" ref={containerRef}>
-      <img
-        className="boot-sequence__frame"
-        ref={frameRef}
-        src={frames[frameIndex]}
-        alt=""
-      />
+    <div className="boot">
+      <img className="boot__frame" src={frames[frameIndex]} alt="" />
+
+      <div className="boot__log">
+        {visible.map((line) => (
+          <p key={line.text} className="boot__line" data-kind={line.kind}>
+            {line.text}
+          </p>
+        ))}
+        <p className="boot__line boot__line--cursor">
+          <span className="boot__cursor" aria-hidden="true" />
+        </p>
+      </div>
+
+      <p className="boot__hint">PULSA PARA CONTINUAR</p>
     </div>
   )
 }

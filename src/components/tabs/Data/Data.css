@@ -1,260 +1,208 @@
+/* ==========================================================================
+   DATA — vault terminal
+   Register list on the left, file viewer on the right. Both scroll
+   independently inside one bounded grid; the list column is a percentage
+   of free space, not a fixed pixel width that used to eat the viewer.
+   ========================================================================== */
+
 .data {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  gap: 18px;
-  padding: 14px 22px 18px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .data__body {
-  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 2fr);
   min-height: 0;
-  display: flex;
-  border: 1px solid var(--pipboy-color-deep);
-  background: linear-gradient(
-    180deg,
-    rgba(30, 255, 0, 0.025),
-    rgba(30, 255, 0, 0.01)
-  );
+  min-width: 0;
+  overflow: hidden;
 }
 
-/* ---------- LEFT: register / file list ---------- */
-
+/* ---- Register (file list) ------------------------------------------------ */
 .register {
-  flex: 0 0 clamp(380px, 38%, 500px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
   border-right: 1px solid var(--pipboy-color-deep);
 }
 
 .register__path {
-  padding: 16px 22px;
-  font-size: 1.6rem;
-  letter-spacing: 0.08em;
+  padding: calc(var(--u) * 0.5) var(--pad);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track);
   color: var(--pipboy-color-faint);
-  border-bottom: 1px solid var(--pipboy-color-deep);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border-bottom: 1px solid var(--pipboy-color-deep);
 }
 
 .register__list {
-  flex: 1;
+  display: grid;
+  gap: calc(var(--u) * 0.12);
+  align-content: start;
+  padding: var(--gap-xs);
   min-height: 0;
-  overflow-y: auto;
-  padding: 14px 14px 18px;
 }
 
 .register-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--gap-xs);
   width: 100%;
-  padding: 14px 16px;
-  background: none;
-  border: none;
-  border-bottom: 1px dashed var(--pipboy-color-deep);
-  font: inherit;
-  font-size: 1.75rem;
-  letter-spacing: 0.1em;
-  color: var(--pipboy-color-faint);
-  cursor: pointer;
+  padding: calc(var(--u) * 0.5) var(--gap-xs);
   text-align: left;
+  transition: background var(--snap-fast);
+}
+
+.register-row:hover {
+  background: var(--panel-fill);
+}
+
+.register-row[aria-selected='true'] {
+  background: var(--panel-fill-active);
+  box-shadow: inset 2px 0 0 var(--pipboy-color);
 }
 
 .register-row__addr {
-  color: var(--pipboy-color-deep);
-  flex-shrink: 0;
-  font-size: 1.65rem;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.register-row[aria-selected='true'] .register-row__addr {
+  color: var(--pipboy-color-dim);
 }
 
 .register-row__mark {
-  flex-shrink: 0;
-  color: var(--pipboy-color);
-  opacity: 0;
-  transition: opacity 90ms steps(2, end);
-  font-size: 1.75rem;
+  font-size: var(--fs-xs);
+  color: var(--pipboy-color-faint);
 }
 
 .register-row__name {
-  white-space: nowrap;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-dim);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.register-row--active {
-  color: var(--pipboy-color);
-  background: rgba(30, 255, 0, 0.1);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-}
-
-.register-row--active .register-row__mark {
-  opacity: 1;
-}
-
-.register-row--active .register-row__addr {
-  color: var(--pipboy-color);
-}
-
-.register-row:hover:not(.register-row--active) {
-  color: var(--pipboy-color);
+.register-row[aria-selected='true'] .register-row__name {
+  color: var(--pipboy-hot);
 }
 
 .register__footer {
-  padding: 12px 22px;
-  font-size: 1.5rem;
-  letter-spacing: 0.14em;
+  padding: calc(var(--u) * 0.5) var(--pad);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track);
   color: var(--pipboy-color-faint);
   border-top: 1px solid var(--pipboy-color-deep);
 }
 
-/* ---------- RIGHT: file viewer ---------- */
-
+/* ---- Viewer -------------------------------------------------------------- */
 .viewer {
-  flex: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
 }
-
 .viewer__head {
   display: flex;
   align-items: baseline;
-  gap: 20px;
-  padding: 18px 28px;
-  font-size: 1.65rem;
-  letter-spacing: 0.1em;
-  color: var(--pipboy-color-faint);
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: calc(var(--u) * 0.5) var(--pad);
   border-bottom: 1px solid var(--pipboy-color-deep);
 }
 
 .viewer__file {
+  font-size: var(--fs-md);
+  letter-spacing: var(--track-tight);
   color: var(--pipboy-color);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .viewer__meta {
-  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-faint);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .viewer__body {
-  flex: 1;
+  padding: var(--gap);
   min-height: 0;
-  overflow-y: auto;
-  padding: clamp(28px, 4vh, 48px) clamp(32px, 4vw, 64px);
-  font-size: 1.85rem;
-  line-height: 2.3;
 }
 
-.data-text {
-  white-space: pre-wrap;
+/* ---- File contents ------------------------------------------------------- */
+
+.file {
+  display: grid;
+  gap: var(--gap);
+  align-content: start;
+  min-height: 0;
+}
+
+.file__text {
+  font-family: inherit;
+  font-size: var(--fs-md);
+  line-height: 1.75;
+  letter-spacing: var(--track-tight);
   color: var(--pipboy-color);
-  text-shadow: 0 0 5px var(--pipboy-color-glow);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.data-cursor {
+.file__cursor {
   display: inline-block;
-  width: 0.55em;
-  height: 1.05em;
-  margin-left: 6px;
+  width: 0.6em;
+  height: 1em;
+  margin-left: 0.1em;
   vertical-align: text-bottom;
   background: var(--pipboy-color);
-  box-shadow: 0 0 7px var(--pipboy-color-glow);
-  animation: data-blink 1.06s steps(1, end) infinite;
+  box-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+  animation: pip-blink 1.06s steps(1, end) infinite;
 }
 
-@keyframes data-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-/* ---------- SKILLS ---------- */
-
-.skill {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 40px;
-}
-
-.skill__bar {
-  position: relative;
-  width: min(720px, 100%);
-  height: 34px;
-  border: 1px solid var(--pipboy-color-glow);
-  background: var(--pipboy-color-deep);
-}
-
-.skill-bar__fill {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  left: 2px;
-  width: var(--pct);
-  background: var(--pipboy-color);
-  box-shadow: 0 0 9px var(--pipboy-color-glow);
-  transform: scaleX(0);
-  transform-origin: left center;
-  animation: skill-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.skill__bar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0,
-    transparent calc(20% - 1px),
-    var(--pipboy-color-deep) calc(20% - 1px),
-    var(--pipboy-color-deep) 20%
-  );
-  pointer-events: none;
-}
-
-@keyframes skill-grow {
-  to {
-    transform: scaleX(1);
-  }
-}
-
-.skill__meter {
-  font-size: 1.55rem;
-  letter-spacing: 0.2em;
+.file__note {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track);
   color: var(--pipboy-color-faint);
 }
 
-/* ---------- CONTACT ---------- */
-
-.contact {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 44px;
+.file__action {
+  justify-self: start;
 }
 
-.contact__link {
-  display: inline-block;
-  padding: 16px 32px;
-  border: 1px solid var(--pipboy-color-glow);
-  font-size: 1.75rem;
-  letter-spacing: 0.18em;
-  color: var(--pipboy-color);
-  text-decoration: none;
-  background: rgba(30, 255, 0, 0.06);
-  transition: background 120ms steps(2, end);
-}
+/* ---- Narrow: the register collapses to a horizontal strip ---------------- */
+@media (max-width: 680px) {
+  .data__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 0.7fr) minmax(0, 1.6fr);
+  }
 
-.contact__link:hover,
-.contact__link:focus-visible {
-  background: rgba(30, 255, 0, 0.14);
-  box-shadow: 0 0 8px var(--pipboy-color-glow);
-  outline: none;
+  .register {
+    border-right: none;
+    border-bottom: 1px solid var(--pipboy-color-deep);
+  }
+
+  .register__path {
+    display: none;
+  }
+
+  .viewer__meta {
+    display: none;
+  }
 }

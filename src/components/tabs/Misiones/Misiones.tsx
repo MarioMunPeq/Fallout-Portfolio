@@ -1,249 +1,211 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent } from 'react'
+import { QUESTS, STATUS_LABEL } from '../../../data/projects'
+import { playSfx } from '../../../utils/sfx'
+import selectSfx from '../../../assets/sfx/dial_move.ogg'
+import openSfx from '../../../assets/sfx/submodule_change.ogg'
 import './Misiones.css'
 
-export interface Project {
-  id: string
-  name: string
-  status: 'active' | 'completed' | 'paused'
-  description: string
-  objectives: { text: string; completed: boolean }[]
-  repoUrl: string
-  demoUrl: string
+/** F3's quest-log glyphs: filled dot = active, tick = done, hollow = open. */
+const STATUS_GLYPH = {
+  active: '●',
+  completed: '✔',
+  paused: '○',
+} as const
+
+function useClock(): string {
+  const [stamp, setStamp] = useState(() => formatDate(new Date()))
+
+  useEffect(() => {
+    const id = window.setInterval(() => setStamp(formatDate(new Date())), 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  return stamp
 }
 
-const PROJECTS: readonly Project[] = [
-  {
-    id: 'vault-archive',
-    name: 'VAULT ARCHIVE',
-    status: 'active',
-    description:
-      'Recreación funcional de la interfaz Pip-Boy 3000 como portfolio técnico interactivo. Incluye navegación por tabs estilo Fallout, mapa con marcadores, terminal de hackeo, radio con visualizador y sistema CRT con scanlines.',
-    objectives: [
-      { text: 'Secuencia de arranque y boot', completed: true },
-      { text: 'Módulo STAT (SPECIAL, Perks)', completed: true },
-      { text: 'Módulo DATA (registros, skills, contacto)', completed: true },
-      { text: 'Módulo MAPA (Mapbox GL, POIs, off-screen)', completed: true },
-      { text: 'Módulo RADIO (visualizador, ecualizador)', completed: true },
-      { text: 'Módulo HACK (terminal, diccionario dinámico)', completed: true },
-      { text: 'MÓDULO MISIONES (esta pantalla)', completed: true },
-      { text: 'Pulido visual y efectos CRT', completed: false },
-      { text: 'Easter eggs y contenido oculto', completed: false },
-    ],
-    repoUrl: 'https://github.com/mariomunozp/vault-archive',
-    demoUrl: 'https://mariomunozp.github.io/vault-archive/',
-  },
-  {
-    id: 'cosmere-archive',
-    name: 'COSMERE ARCHIVE',
-    status: 'completed',
-    description:
-      'Web de referencia sobre el universo Cosmere de Brandon Sanderson. Base de datos navegable de libros, personajes, mundos y sistemas de magia con búsqueda en tiempo real.',
-    objectives: [
-      { text: 'Diseño de interfaz y arquitectura de datos', completed: true },
-      { text: 'Base de datos completa de libros y personajes', completed: true },
-      { text: 'Búsqueda en tiempo real y filtros', completed: true },
-      { text: 'Publicado en producción (GitHub Pages)', completed: true },
-      { text: 'Documentación en README', completed: true },
-    ],
-    repoUrl: 'https://github.com/MarioMunPeq/Cosmere-Archive',
-    demoUrl: 'https://mariomunpeq.github.io/Cosmere-Archive/',
-  },
-  {
-    id: 'euromario',
-    name: 'EUROMARIO',
-    status: 'completed',
-    description:
-      'Agregador de noticias de videojuegos con IA que categoriza, resume y presenta contenido de múltiples fuentes. Desplegado en GitHub Pages con actualización automatizada.',
-    objectives: [
-      { text: 'Pipeline de scraping y clasificación IA', completed: true },
-      { text: 'Interfaz de lectura tipo feed responsiva', completed: true },
-      { text: 'Despliegue automático en GitHub Pages', completed: true },
-      { text: 'Documentación en README', completed: true },
-    ],
-    repoUrl: 'https://github.com/mariomunozp/euromario',
-    demoUrl: 'https://mariomunpeq.github.io/Euromario/',
-  },
-  {
-    id: 'dnd-companion',
-    name: 'DUNGEON ARCHIVE',
-    status: 'completed',
-    description:
-      'Web companion para campañas de D&D: seguimiento de iniciativa, generación de encuentros, calculadora de XP/tesoro y referencia rápida de reglas SRD 5.1.',
-    objectives: [
-      { text: 'Diseño de interfaz y arquitectura', completed: true },
-      { text: 'Generador de encuentros balanceados', completed: true },
-      { text: 'Seguimiento de iniciativa y condiciones', completed: true },
-      { text: 'Publicado en producción', completed: true },
-      { text: 'Documentación en README', completed: true },
-    ],
-    repoUrl: 'https://github.com/MarioMunPeq/Dungeon-Archive',
-    demoUrl: 'https://mariomunpeq.github.io/Dungeon-Archive/',
-  },
-  {
-    id: 'portfolio-mmp',
-    name: 'PERSONA 5 PORTFOLIO',
-    status: 'completed',
-    description:
-      'Portfolio personal con menú estilo Persona 5, animaciones fluidas y secciones de proyectos, experiencia y contacto. Diseño responsivo y accesible.',
-    objectives: [
-      { text: 'Diseño de interfaz estilo Persona 5', completed: true },
-      { text: 'Animaciones y transiciones fluidas', completed: true },
-      { text: 'Secciones: proyectos, experiencia, contacto', completed: true },
-      { text: 'Publicado en producción', completed: true },
-      { text: 'Documentación en README', completed: true },
-    ],
-    repoUrl: 'https://github.com/MarioMunPeq/portfolio-persona5',
-    demoUrl: 'https://mariomunpeq.github.io/portfolio-persona5/',
-  },
-]
+function formatDate(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${String(d.getFullYear()).slice(-2)}, ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 export function Misiones() {
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [currentTime, setCurrentTime] = useState('')
-  const listRef = useRef<HTMLDivElement>(null)
+  const clock = useClock()
+  const listRef = useRef<HTMLUListElement>(null)
+  const shouldScroll = useRef(false)
 
+  // Scroll the list to the selection, but only when the move came from the
+  // keyboard. scrollIntoView also scrolls every scrollable ancestor, which
+  // used to yank the tab bar out of view.
   useEffect(() => {
-    const updateTime = () => {
-      const now = new Date()
-      const day = String(now.getDate()).padStart(2, '0')
-      const month = String(now.getMonth() + 1).padStart(2, '0')
-      const year = String(now.getFullYear()).slice(-2)
-      const hours = String(now.getHours()).padStart(2, '0')
-      const minutes = String(now.getMinutes()).padStart(2, '0')
-      setCurrentTime(`${day}.${month}.${year}, ${hours}:${minutes}`)
-    }
-    updateTime()
-    const interval = setInterval(updateTime, 60000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const scrollToSelected = useCallback(() => {
-    if (listRef.current) {
-      const selectedElement = listRef.current.querySelector('.mission-row--selected')
-      if (selectedElement) {
-        selectedElement.scrollIntoView({ block: 'nearest' })
+    if (!shouldScroll.current) return
+    shouldScroll.current = false
+    const el = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (el && listRef.current) {
+      const top = el.offsetTop
+      const view = listRef.current
+      if (top < view.scrollTop) view.scrollTop = top
+      else if (top + el.offsetHeight > view.scrollTop + view.clientHeight) {
+        view.scrollTop = top + el.offsetHeight - view.clientHeight
       }
     }
+  }, [selectedIndex])
+
+  const move = useCallback((next: number) => {
+    shouldScroll.current = true
+    setSelectedIndex((next + QUESTS.length) % QUESTS.length)
+    playSfx(selectSfx)
   }, [])
 
-  useEffect(() => {
-    scrollToSelected()
-  }, [selectedIndex, scrollToSelected])
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      switch (event.key) {
+        case 'ArrowUp':
+          event.preventDefault()
+          move(selectedIndex - 1)
+          break
+        case 'ArrowDown':
+          event.preventDefault()
+          move(selectedIndex + 1)
+          break
+        case 'Home':
+          event.preventDefault()
+          move(0)
+          break
+        case 'End':
+          event.preventDefault()
+          move(QUESTS.length - 1)
+          break
+        default:
+          break
+      }
+    },
+    [selectedIndex, move],
+  )
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    switch (event.key) {
-      case 'ArrowUp':
-        event.preventDefault()
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : PROJECTS.length - 1))
-        break
-      case 'ArrowDown':
-        event.preventDefault()
-        setSelectedIndex((prev) => (prev < PROJECTS.length - 1 ? prev + 1 : 0))
-        break
-      case 'Home':
-        event.preventDefault()
-        setSelectedIndex(0)
-        break
-      case 'End':
-        event.preventDefault()
-        setSelectedIndex(PROJECTS.length - 1)
-        break
-    }
-  }
-
-  const selectedProject = PROJECTS[selectedIndex]
+  const quest = QUESTS[selectedIndex]
+  const done = quest.objectives.filter((o) => o.completed).length
+  const total = quest.objectives.length
+  const progress = Math.round((done / total) * 100)
 
   return (
-    <div className="misiones" onKeyDown={handleKeyDown} tabIndex={0}>
-      <header className="misiones__header">
+    <div
+      className="misiones"
+      onKeyDown={handleKeyDown}
+      role="group"
+      aria-label="Diario de misiones"
+    >
+      <header className="misiones__bar">
         <span className="misiones__location">VALLADOLID</span>
-        <time className="misiones__datetime" dateTime={new Date().toISOString()}>
-          {currentTime}
+        <span className="misiones__count">
+          {QUESTS.length} MISIONES REGISTRADAS
+        </span>
+        <time className="misiones__datetime" dateTime={clock.split(',')[0]}>
+          {clock}
         </time>
       </header>
 
-      <div className="misiones__layout">
-        <aside className="misiones__list" ref={listRef} role="listbox" aria-label="Lista de misiones">
-          <div className="misiones__list-inner">
-            {PROJECTS.map((project, index) => (
-              <button
-                key={project.id}
-                type="button"
-                role="option"
-                aria-selected={index === selectedIndex}
-                className={[
-                  'mission-row',
-                  project.status === 'completed' ? 'mission-row--completed' : '',
-                  project.status === 'active' ? 'mission-row--active' : '',
-                  project.status === 'paused' ? 'mission-row--paused' : '',
-                  index === selectedIndex ? 'mission-row--selected' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onClick={() => setSelectedIndex(index)}
-              >
-                <span className="mission-row__status" aria-hidden="true">
-                  {project.status === 'completed' ? '✔' : project.status === 'active' ? '▸' : ''}
-                </span>
-                <span className="mission-row__name">{project.name}</span>
-              </button>
+      <div className="misiones__body">
+        {/* ---- Quest list ------------------------------------------------ */}
+        <nav className="misiones__list pip-scroll" aria-label="Misiones">
+          <ul ref={listRef}>
+            {QUESTS.map((q, index) => (
+              <li key={q.id}>
+                <button
+                  type="button"
+                  className="mission"
+                  aria-selected={index === selectedIndex}
+                  aria-current={index === selectedIndex || undefined}
+                  onClick={() => {
+                    if (index !== selectedIndex) playSfx(openSfx)
+                    setSelectedIndex(index)
+                  }}
+                >
+                  <span
+                    className="mission__glyph"
+                    data-status={q.status}
+                    aria-hidden="true"
+                  >
+                    {STATUS_GLYPH[q.status]}
+                  </span>
+                  <span className="mission__text">
+                    <span className="mission__name">{q.name}</span>
+                    <span className="mission__tagline">{q.tagline}</span>
+                  </span>
+                  <span className="mission__year">{q.year}</span>
+                </button>
+              </li>
             ))}
-          </div>
-          <div className="misiones__scroll-indicators" aria-hidden="true">
-            <span className="scroll-indicator scroll-indicator--up">▲</span>
-            <span className="scroll-indicator scroll-indicator--down">▼</span>
-          </div>
-        </aside>
+          </ul>
+        </nav>
 
-        <section className="misiones__detail" aria-live="polite">
-          <div className="misiones__detail-inner">
-            <div className="misiones__detail-header">
-              <span className="misiones__detail-title">{selectedProject.name}</span>
-              <span className={`misiones__detail-status misiones__detail-status--${selectedProject.status}`}>
-                {selectedProject.status === 'active' ? 'EN DESARROLLO' : selectedProject.status === 'completed' ? 'COMPLETADA' : 'PAUSADA'}
+        {/* ---- Detail ----------------------------------------------------- */}
+        <article className="misiones__detail pip-panel" key={quest.id}>
+          <header className="detail__head">
+            <h1 className="detail__title">{quest.name}</h1>
+            <span className="detail__status" data-status={quest.status}>
+              {STATUS_LABEL[quest.status]}
+            </span>
+          </header>
+
+          <p className="detail__description">{quest.description}</p>
+
+          <ul className="detail__tech" aria-label="Tecnologías">
+            {quest.tech.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+
+          <section className="detail__objectives">
+            <div className="detail__objectives-head">
+              <h2 className="pip-label">OBJETIVOS</h2>
+              <span className="detail__progress">
+                {done}/{total} · {progress}%
               </span>
             </div>
 
-            <div className="misiones__description">
-              {selectedProject.description}
+            <div className="detail__progress-track" aria-hidden="true">
+              <span style={{ width: `${progress}%` }} />
             </div>
 
-            <div className="misiones__objectives">
-              <h3 className="misiones__objectives-title">OBJETIVOS</h3>
-              <ul className="misiones__objectives-list" role="list">
-                {selectedProject.objectives.map((objective, idx) => (
-                  <li key={idx} className="misiones__objective">
-                    <span className="misiones__checkbox" aria-hidden="true">
-                      {objective.completed ? '☑' : '☐'}
-                    </span>
-                    <span className={objective.completed ? 'misiones__objective--done' : ''}>
-                      {objective.text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ul className="objectives pip-scroll">
+              {quest.objectives.map((objective) => (
+                <li
+                  key={objective.text}
+                  className="objective"
+                  data-done={objective.completed || undefined}
+                >
+                  <span className="objective__box" aria-hidden="true">
+                    {objective.completed ? '✔' : '○'}
+                  </span>
+                  <span className="objective__text">{objective.text}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-            <div className="misiones__actions">
+          <footer className="detail__actions">
+            <a
+              className="pip-btn"
+              href={quest.repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              REPOSITORIO ↗
+            </a>
+            {quest.demoUrl && (
               <a
-                href={selectedProject.repoUrl}
+                className="pip-btn pip-btn--primary"
+                href={quest.demoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="misiones__action"
               >
-                [ VER REPOSITORIO ▸ ]
+                VISITAR PROYECTO ↗
               </a>
-              <a
-                href={selectedProject.demoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="misiones__action"
-              >
-                [ VER DEMO EN VIVO ▸ ]
-              </a>
-            </div>
-          </div>
-        </section>
+            )}
+          </footer>
+        </article>
       </div>
     </div>
   )

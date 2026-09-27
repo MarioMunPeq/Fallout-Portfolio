@@ -1,277 +1,380 @@
+/* ==========================================================================
+   HACK — Termlink minigame
+   Layout: difficulty strip / terminal / console+log. All bounded grid items.
+   ========================================================================== */
+
 .hack {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 6px 10px 8px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .hack--status {
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
+  place-content: center;
+  justify-items: center;
+  gap: var(--gap);
+  text-align: center;
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-dim);
 }
 
-.hack__status-text {
-  font-size: 1rem;
-  letter-spacing: 0.24em;
-  color: var(--pipboy-color);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-}
+/* ==========================================================================
+   TERMINAL
+   ========================================================================== */
 
-.hack__top {
-  flex-shrink: 0;
-}
-
-.hack__body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-}
-
-.terminal {
+.term {
   position: relative;
-  flex: 1 1 auto;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
   min-width: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--pipboy-color-deep);
-  background: var(--screen-bg);
-  padding: 10px 12px;
-  font-family: var(--font-pipboy);
-  font-size: 0.75rem;
-  line-height: 1.35;
-  color: var(--pipboy-color);
-  text-shadow: 0 0 5px var(--pipboy-color-glow);
+  background: rgba(0, 0, 0, 0.3);
   user-select: none;
 }
 
-.terminal__boot {
-  flex: 0 0 auto;
-  white-space: pre-wrap;
-  cursor: pointer;
-  letter-spacing: 0.06em;
+/* The round's own grid: head / attempts bar / memory / console */
+.term__inner {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.terminal__boot--done {
-  cursor: default;
-}
-
-.terminal__attempts {
+.term__head {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 8px;
-  padding: 5px 8px;
-  border: 1px solid var(--pipboy-color-deep);
-  background: rgba(30, 255, 0, 0.03);
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: calc(var(--u) * 0.35) var(--pad);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-faint);
+  border-bottom: 1px solid var(--pipboy-color-deep);
 }
 
-.terminal__attempts-text {
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
+/* ---- Attempts bar -------------------------------------------------------- */
+.term__bar {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: calc(var(--u) * 0.35) var(--pad);
+  border-bottom: 1px solid var(--pipboy-color-deep);
+}
+
+.term__attempts {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-tight);
   color: var(--pipboy-color);
   white-space: nowrap;
 }
 
-.terminal__attempts-blocks {
-  display: inline-flex;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.terminal__attempt-block {
-  font-size: 0.8rem;
-  line-height: 1;
-  color: var(--pipboy-color-faint);
-}
-
-.terminal__attempt-block--on {
-  color: var(--pipboy-color);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-}
-
-.terminal__memory {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  margin-top: 3px;
-  letter-spacing: 0;
-  position: relative;
+.term__blocks {
   display: flex;
+  gap: 2px;
 }
 
-.terminal__column {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 0;
+.term__blocks i {
+  width: calc(var(--u) * 0.55);
+  height: calc(var(--u) * 0.7);
+  background: var(--pipboy-color-deep);
+  box-shadow: 0 0 0 1px var(--pipboy-color-faint) inset;
+}
+
+.term__blocks i[data-on] {
+  background: var(--pipboy-color);
+  box-shadow: 0 0 calc(var(--u) * 0.3) var(--pipboy-color-glow);
+}
+
+.term__feedback {
+  justify-self: end;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track);
+  color: var(--pipboy-hot);
+  text-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+  animation: term-flash 1.4s steps(1, end) both;
   overflow: hidden;
-  white-space: pre;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.terminal__column + .terminal__column {
-  border-left: 1px solid var(--pipboy-color-deep);
-  padding-left: 1ch;
-  margin-left: 1ch;
-}
-
-.terminal__probe {
-  position: absolute;
-  visibility: hidden;
-  white-space: pre;
-  pointer-events: none;
-}
-
-.terminal__line {
-  white-space: pre;
-}
-
-.terminal__addr {
-  display: inline-block;
-  width: 8ch;
-  padding-right: 1ch;
-  color: var(--pipboy-color-faint);
-  text-shadow: none;
-}
-
-.terminal__content {
-  white-space: pre;
-}
-
-.hack-token {
-  display: inline-block;
-  padding: 0 1px;
-  line-height: inherit;
-  cursor: pointer;
-  color: var(--pipboy-color);
-  text-shadow: 0 0 5px var(--pipboy-color-glow);
-}
-
-.hack-token:hover {
-  background: var(--pipboy-color);
-  color: var(--screen-bg);
-  text-shadow: 0 0 8px var(--pipboy-color-glow);
-}
-
-.hack-token.hack-token--dud--used,
-.hack-token.hack-token--dud--used:hover {
-  color: var(--pipboy-color-faint);
-  text-shadow: none;
-  background: transparent;
-  cursor: default;
-}
-
-.hack-char {
-  display: inline-block;
-  padding: 0 1px;
-  line-height: inherit;
-  cursor: pointer;
-  color: var(--pipboy-color);
-  text-shadow: 0 0 5px var(--pipboy-color-glow);
-}
-
-.hack-char:hover {
-  background: var(--pipboy-color);
-  color: var(--screen-bg);
-  text-shadow: 0 0 8px var(--pipboy-color-glow);
-}
-
-.hack-char--noise {
-  cursor: pointer;
-}
-
-.hack-token--word {
-  text-shadow: none;
-}
-
-.hack-token--dud {
-  text-shadow: none;
-}
-
-.hack-token--struck {
-  color: var(--pipboy-color-faint);
-  text-shadow: none;
-}
-
-.terminal__log {
-  flex: 0 0 auto;
-  max-height: 4.8em;
-  overflow-y: auto;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px dashed var(--pipboy-color-deep);
-  font-size: 0.7rem;
-  line-height: 1.45;
-}
-
-.terminal__log-line {
-  white-space: pre;
-  letter-spacing: 0.04em;
-}
-
-.terminal__prompt {
-  flex: 0 0 auto;
-  margin-top: 4px;
-  white-space: pre;
-}
-
-.terminal__cursor {
-  display: inline-block;
-  width: 0.58em;
-  height: 1.05em;
-  vertical-align: text-bottom;
-  background: var(--pipboy-color);
-  box-shadow: 0 0 6px var(--pipboy-color-glow);
-  animation: hack-blink 1.06s steps(1, end) infinite;
-}
-
-@keyframes hack-blink {
-  50% {
+@keyframes term-flash {
+  from {
     opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
-.terminal__overlay {
+/* ==========================================================================
+   MEMORY BOARD
+   ========================================================================== */
+
+.term__memory {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  gap: 0 var(--gap);
+  align-content: start;
+  padding: var(--gap-xs) var(--pad);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+}
+
+.term__probe {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: pre;
+}
+
+.term__column {
+  display: grid;
+  grid-auto-rows: min-content;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.term__line {
+  display: grid;
+  grid-template-columns: 9ch minmax(0, 1fr);
+  min-width: 0;
+  white-space: pre;
+}
+
+.term__addr {
+  color: var(--pipboy-color-deep);
+  padding-right: 1ch;
+}
+
+.term__content {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.term__noise {
+  color: var(--pipboy-color-faint);
+}
+
+.term__boot {
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color);
+  white-space: pre-wrap;
+}
+
+.term__boot--solo {
+  align-self: center;
+  justify-self: center;
+  padding: var(--pad);
+}
+
+/* ---- Tokens --------------------------------------------------------------
+   The board is mostly noise, so the tokens have to be the only thing that
+   looks clickable. Struck/erased words keep their slot but go inert. */
+.term__token {
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  white-space: pre;
+  transition:
+    color var(--snap-fast),
+    background var(--snap-fast);
+}
+
+.term__token--word {
+  color: var(--pipboy-hot);
+  text-shadow: 0 0 calc(var(--u) * 0.35) var(--pipboy-color-glow);
+  background: var(--pipboy-color-deep);
+  cursor: pointer;
+}
+
+.term__token--word:hover:not(:disabled),
+.term__token--word:focus-visible {
+  color: var(--screen-bg);
+  background: var(--pipboy-color);
+  text-shadow: none;
+  outline: none;
+}
+
+/* Known-wrong or erased: keeps the slot so the board geometry doesn't jump,
+   but reads as dead. */
+.term__token--word[data-locked] {
+  color: var(--pipboy-color-deep);
+  text-shadow: none;
+  background: none;
+  cursor: default;
+  text-decoration: line-through;
+  text-decoration-color: var(--pipboy-color-faint);
+}
+
+.term__token--dud {
+  color: var(--pipboy-color);
+  background: var(--pipboy-color-faint);
+  cursor: pointer;
+}
+
+.term__token--dud:hover:not(:disabled),
+.term__token--dud:focus-visible {
+  color: var(--screen-bg);
+  background: var(--pipboy-hot);
+  outline: none;
+}
+
+.term__token--dud[data-used] {
+  color: var(--pipboy-color-deep);
+  background: none;
+  cursor: default;
+}
+
+/* ==========================================================================
+   CONSOLE + LOG
+   ========================================================================== */
+
+.term__foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--gap-sm);
+  padding: calc(var(--u) * 0.35) var(--pad);
+  min-height: 0;
+  border-top: 1px solid var(--pipboy-color-deep);
+}
+
+.term__log {
+  display: grid;
+  align-content: end;
+  gap: 1px;
+  max-height: calc(var(--u) * 4.6);
+  overflow: hidden;
+  font-size: var(--fs-2xs);
+  line-height: 1.5;
+  letter-spacing: var(--track-tight);
+}
+
+.term__log-line {
+  color: var(--pipboy-color-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.term__log-line:first-child {
+  color: var(--pipboy-color);
+}
+
+.term__hints {
+  display: flex;
+  gap: var(--gap-sm);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-deep);
+  white-space: nowrap;
+}
+
+.term__cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--pipboy-color);
+  animation: pip-blink 1.06s steps(1, end) infinite;
+}
+
+/* ==========================================================================
+   OVERLAYS
+   ========================================================================== */
+
+.term__overlay {
   position: absolute;
   inset: 0;
+  z-index: 5;
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 12px;
-  background: rgba(3, 11, 0, 0.9);
-}
-
-.terminal__overlay-line {
-  font-size: 1.05rem;
-  letter-spacing: 0.22em;
-  text-shadow: 0 0 8px var(--pipboy-color-glow);
-  color: var(--pipboy-color);
+  gap: var(--gap);
+  padding: var(--pad);
+  overflow-y: auto;
   text-align: center;
+  background: rgba(7, 11, 5, 0.93);
+  animation: pip-fade 220ms steps(3, end) both;
 }
 
-.terminal__overlay .hack-button {
-  margin-top: 10px;
+@keyframes pip-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-.hack-button {
-  font-family: var(--font-pipboy);
-  font-size: 0.75rem;
-  letter-spacing: 0.18em;
-  color: var(--pipboy-color);
-  background: none;
-  border: 1px solid var(--pipboy-color-glow);
-  padding: 4px 14px;
-  cursor: pointer;
-  text-transform: uppercase;
+.term__overlay-line {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-dim);
 }
 
-.hack-button:hover {
-  background: var(--pipboy-color-deep);
-  box-shadow: inset 0 0 8px var(--pipboy-color-deep);
+/* Big lockout timer */
+.term__countdown {
+  font-size: var(--fs-3xl);
+  line-height: 1;
+  letter-spacing: var(--track);
+  color: var(--pipboy-hot);
+  text-shadow:
+    0 0 calc(var(--u) * 0.8) var(--pipboy-color-glow),
+    0 0 calc(var(--u) * 2) var(--pipboy-color-faint);
+  font-variant-numeric: tabular-nums;
+  animation: pip-blink 1s steps(1, end) infinite;
 }
 
-.hack-button:focus-visible {
-  outline: 1px dashed var(--pipboy-color-faint);
-  outline-offset: 2px;
+.term__payload {
+  display: grid;
+  gap: 1px;
+  text-align: left;
+}
+
+.term__payload-line {
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-dim);
+  white-space: pre;
+}
+
+.term__payload-line:first-child,
+.term__payload-line:nth-child(2) {
+  color: var(--pipboy-hot);
+  text-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 700px) {
+  .term__hints {
+    display: none;
+  }
+
+  .term__foot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-height: 560px) {
+  .term__log {
+    max-height: calc(var(--u) * 2.6);
+  }
 }

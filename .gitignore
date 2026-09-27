@@ -21,3 +21,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Mapbox style painter: sólo se versiona theme.json
+mapbox/style.current.json
+mapbox/vault-style.json
+mapbox/backup-*.json

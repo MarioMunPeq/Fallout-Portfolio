@@ -1,36 +1,34 @@
-import { useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { TabNav } from '../../TabNav/TabNav'
 import submoduleChangeSfx from '../../../assets/sfx/submodule_change.ogg'
+import selectSfx from '../../../assets/sfx/dial_move.ogg'
 import { DATA_SECTIONS } from './dataSections'
-import type { DataEntry } from './dataSections'
+import type { DataEntry, DataSectionId } from './dataSections'
+import { playSfx } from '../../../utils/sfx'
 import './Data.css'
 
-export type DataSubTab = 'ABOUT' | 'EDUCATION' | 'EXPERIENCE' | 'CONTACT'
-
-const SUB_TABS: readonly DataSubTab[] = [
-  'ABOUT',
-  'EDUCATION',
-  'EXPERIENCE',
-  'CONTACT',
-]
+const SUB_TABS = DATA_SECTIONS.map((s) => s.id)
 
 export function Data() {
-  const [sectionTab, setSectionTab] = useState<DataSubTab>('ABOUT')
+  const [sectionTab, setSectionTab] = useState<DataSectionId>('ABOUT')
   const [selectedId, setSelectedId] = useState<string>(
     () => DATA_SECTIONS[0].entries[0].id,
   )
 
-  const section = DATA_SECTIONS.find((s) => s.id === sectionTab)
-  const entries = section ? section.entries : DATA_SECTIONS[0].entries
-  const selected =
-    entries.find((entry) => entry.id === selectedId) ?? entries[0]
+  const section =
+    DATA_SECTIONS.find((s) => s.id === sectionTab) ?? DATA_SECTIONS[0]
+  const entries = section.entries
+  const selected = entries.find((e) => e.id === selectedId) ?? entries[0]
+  const index = entries.indexOf(selected)
 
-  const handleSelectSection = (tab: DataSubTab) => {
+  // Byte count has to include the newlines, otherwise "TAM" under-reports by
+  // exactly (lines - 1).
+  const bodyText = selected.lines.join('\n')
+
+  const handleSelectSection = (tab: DataSectionId) => {
     setSectionTab(tab)
     const next = DATA_SECTIONS.find((s) => s.id === tab)
-    const firstId = next?.entries[0]?.id ?? ''
-    setSelectedId(firstId)
+    setSelectedId(next?.entries[0]?.id ?? '')
   }
 
   return (
@@ -43,136 +41,134 @@ export function Data() {
         confirmSfx={submoduleChangeSfx}
         variant="secondary"
       />
-      <div className="data__body">
-        <div className="register">
-          <p className="register__path">{section?.path}</p>
-          <div className="register__list" role="listbox" aria-label="Registros">
-            {entries.map((entry, index) => (
-              <button
-                key={entry.id}
-                type="button"
-                role="option"
-                aria-selected={entry.id === selected.id}
-                className={[
-                  'register-row',
-                  entry.id === selected.id ? 'register-row--active' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onClick={() => setSelectedId(entry.id)}
-              >
-                <span className="register-row__addr">{hexAddr(index)}</span>
-                <span className="register-row__mark">&gt;</span>
-                <span className="register-row__name">{entry.name}</span>
-              </button>
-            ))}
-          </div>
-          <p className="register__footer">REGISTROS: {entries.length}</p>
-        </div>
 
-        <div className="viewer" aria-live="polite">
-          <div className="viewer__head">
+      <div className="data__body">
+        <nav className="register" aria-label={`Registros de ${section.label}`}>
+          <p className="register__path">{section.path}</p>
+
+          <ul className="register__list pip-scroll">
+            {entries.map((entry, i) => (
+              <li key={entry.id}>
+                <button
+                  type="button"
+                  className="register-row"
+                  aria-selected={entry.id === selected.id}
+                  onClick={() => {
+                    if (entry.id === selected.id) return
+                    setSelectedId(entry.id)
+                    playSfx(selectSfx)
+                  }}
+                >
+                  <span className="register-row__addr">{hexAddr(i)}</span>
+                  <span className="register-row__mark" aria-hidden="true">
+                    &gt;
+                  </span>
+                  <span className="register-row__name">{entry.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <p className="register__footer">REGISTROS: {entries.length}</p>
+        </nav>
+
+        <section className="viewer">
+          <header className="viewer__head">
             <span className="viewer__file">
-              {hexAddr(entries.indexOf(selected))}▸ {selected.name}
+              {hexAddr(index)}▸ {selected.name}
             </span>
             <span className="viewer__meta">
-              ENTRADA {entries.indexOf(selected) + 1}/{entries.length} · TAM{' '}
-              {selected.lines.join('').length}B
+              ENTRADA {index + 1}/{entries.length} · TAM {bodyText.length}B
             </span>
+          </header>
+
+          {/* aria-live is deliberately off: the typewriter mutates this subtree
+              ~150 times, which would spam a screen reader with partial text. */}
+          <div className="viewer__body pip-scroll">
+            <FileContents key={selected.id} entry={selected} text={bodyText} />
           </div>
-          <div className="viewer__body">
-            {selected.level !== undefined ? (
-              <SkillView key={selected.id} entry={selected} />
-            ) : selected.url ? (
-              <ContactView key={selected.id} entry={selected} />
-            ) : (
-              <Typewriter key={selected.id} text={selected.lines.join('\n')} />
-            )}
-          </div>
-        </div>
+        </section>
       </div>
     </div>
   )
 }
 
-interface TypewriterProps {
+interface FileContentsProps {
+  entry: DataEntry
   text: string
 }
 
-function Typewriter({ text }: TypewriterProps) {
+function FileContents({ entry, text }: FileContentsProps) {
+  return (
+    <div className="file">
+      <Typewriter text={text} />
+      {entry.urlDisabled ? (
+        <p className="file__note">[ CANAL NO PUBLICADO ]</p>
+      ) : entry.url ? (
+        <a
+          className="pip-btn file__action"
+          href={entry.url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          [ {entry.urlText} ▸ ]
+        </a>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * Types the file out character by character. The step size scales with the
+ * length so every record takes roughly the same time to read out.
+ *
+ * Mounted with a `key` of the entry id, so switching files remounts this and
+ * the count/progress start clean without an effect reset.
+ */
+function Typewriter({ text }: { text: string }) {
   const [count, setCount] = useState(0)
+  const frame = useRef<number | undefined>(undefined)
+  // Progress lives in a ref because the rAF callback closes over the value
+  // from the render that scheduled it; reading `count` there would stop the
+  // loop on its first frame.
+  const progress = useRef(0)
 
   useEffect(() => {
     if (text.length === 0) return
+
     const step = Math.max(1, Math.ceil(text.length / 150))
-    const id = window.setInterval(() => {
-      setCount((previous) => {
-        const next = Math.min(previous + step, text.length)
-        if (next === text.length) window.clearInterval(id)
-        return next
-      })
-    }, 12)
-    return () => window.clearInterval(id)
+    let previous = performance.now()
+
+    // ~8ms of wall clock per frame regardless of step size, so the reveal
+    // speed stays constant instead of drifting with the interval.
+    const tick = (now: number) => {
+      if (now - previous >= 8) {
+        previous = now
+        const next = Math.min(progress.current + step, text.length)
+        progress.current = next
+        setCount(next)
+        if (next >= text.length) return
+      }
+      frame.current = requestAnimationFrame(tick)
+    }
+
+    frame.current = requestAnimationFrame(tick)
+    return () => {
+      if (frame.current !== undefined) cancelAnimationFrame(frame.current)
+    }
   }, [text])
 
   return (
-    <span className="data-text">
+    <pre className="file__text">
       {text.slice(0, count)}
-      <span className="data-cursor" aria-hidden="true" />
-    </span>
+      {count < text.length && (
+        <span className="file__cursor" aria-hidden="true" />
+      )}
+    </pre>
   )
-}
-
-interface SkillViewProps {
-  entry: DataEntry
-}
-
-function SkillView({ entry }: SkillViewProps) {
-  const level = entry.level ?? 0
-  const style = { '--pct': `${level}%` } as CSSProperties
-
-  return (
-    <div className="skill">
-      <Typewriter text={entry.lines.join('\n')} />
-      <div className="skill__bar" style={style}>
-        <span className="skill-bar__fill" />
-      </div>
-      <span className="skill__meter">
-        {level}% · {levelLabel(level)}
-      </span>
-    </div>
-  )
-}
-
-interface ContactViewProps {
-  entry: DataEntry
-}
-
-function ContactView({ entry }: ContactViewProps) {
-  const isMailto = entry.url?.startsWith('mailto:') ?? false
-  const linkProps = isMailto
-    ? {}
-    : { target: '_blank', rel: 'noreferrer' }
-
-  return (
-    <div className="contact">
-      <Typewriter text={entry.lines.join('\n')} />
-      <a className="contact__link" href={entry.url} {...linkProps}>
-        [ {entry.urlText} ▸ ]
-      </a>
-    </div>
-  )
-}
-
-function levelLabel(level: number): string {
-  if (level >= 80) return 'EXPERTO'
-  if (level >= 60) return 'AVANZADO'
-  if (level >= 40) return 'COMPETENTE'
-  return 'NOVATO'
 }
 
 function hexAddr(index: number): string {
-  const safeIndex = Math.max(0, index)
-  const value = 0x2000 + safeIndex * 0x40
+  const value = 0x2000 + Math.max(0, index) * 0x40
   return '0x' + value.toString(16).toUpperCase().padStart(5, '0')
 }

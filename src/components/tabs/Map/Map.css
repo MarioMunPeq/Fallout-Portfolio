@@ -1,118 +1,290 @@
+/* ==========================================================================
+   MAP
+   --------------------------------------------------------------------------
+   The Mapbox logo and attribution are restyled, not hidden: Mapbox's terms
+   require both to be visible. The logo is pinned bottom-right via
+   `logoPosition` and the info panel sits bottom-left, so they no longer
+   overlap (that collision is what read as a rendering bug).
+   ========================================================================== */
+
 .map {
   position: relative;
-  width: 100%;
-  height: 100%;
+  display: grid;
+  /* The mapbox canvas is injected as a child and must fill this box, so the
+     row has to be sized explicitly — a grid with only absolutely-positioned
+     children has no content height to derive from. */
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--screen-bg);
 }
 
-/* The mapbox canvas sits below the CRT scanlines inherited from Screen. */
+/* mapbox's own root element (it adds this class to the container) */
 .map .mapboxgl-map {
+  font-family: var(--font-pipboy);
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Kill Mapbox's own control chrome; we draw our own in phosphor */
+.map .mapboxgl-ctrl-bottom-right,
+.map .mapboxgl-ctrl-bottom-left {
+  z-index: 3;
+}
+
+.map .mapboxgl-ctrl-attrib {
+  margin: 0 0 var(--u) var(--u);
+  padding: 1px 4px;
+  font-family: var(--font-pipboy);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-faint);
+  background: rgba(7, 11, 5, 0.72);
+  border: 1px solid var(--pipboy-color-deep);
+  border-radius: 0;
+}
+
+.map .mapboxgl-ctrl-attrib a {
+  color: var(--pipboy-color-faint);
+  text-decoration: none;
+}
+
+.map .mapboxgl-ctrl-attrib a:hover {
+  color: var(--pipboy-color);
+}
+
+.map .mapboxgl-ctrl-attrib-button {
+  filter: invert(72%) sepia(28%) saturate(560%) hue-rotate(38deg) brightness(92%)
+    contrast(88%);
+}
+
+.map .mapboxgl-ctrl-attrib.mapboxgl-compact {
+  min-height: 20px;
+}
+
+/* ---- Logo: tinted to the phosphor, kept legible and visible -------------- */
+.map .mapboxgl-ctrl-logo {
+  margin: 0 0 var(--u) 0;
+  /* Mapbox ships a white wordmark; invert+duotone it into phosphor green
+     while keeping full opacity so it stays clearly visible as required. */
+  filter: invert(74%) sepia(34%) saturate(520%) hue-rotate(35deg) brightness(88%)
+    contrast(92%);
+  opacity: 0.75;
+}
+
+.map .mapboxgl-ctrl-logo:hover {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   RETICLE — a targeting crosshair over the chart
+   ========================================================================== */
+
+.map__reticle {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--pipboy-color-deep), var(--pipboy-color-deep)) 50% 0 / 1px 12%
+      no-repeat,
+    linear-gradient(var(--pipboy-color-deep), var(--pipboy-color-deep)) 50% 100% / 1px 12%
+      no-repeat,
+    linear-gradient(var(--pipboy-color-deep), var(--pipboy-color-deep)) 0 50% / 12% 1px
+      no-repeat,
+    linear-gradient(var(--pipboy-color-deep), var(--pipboy-color-deep)) 100% 50% / 12% 1px
+      no-repeat;
+}
+
+/* ==========================================================================
+   HUD — coordinate readout
+   ========================================================================== */
+
+.map__hud {
+  position: absolute;
+  z-index: 4;
+  top: var(--gap-sm);
+  left: var(--gap-sm);
+  display: grid;
+  gap: 2px;
+  padding: calc(var(--u) * 0.35) var(--gap-xs);
+  pointer-events: none;
+  background: rgba(7, 11, 5, 0.6);
+  border-left: 2px solid var(--pipboy-color-dim);
+}
+
+.map__hud-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-xs);
+}
+
+.map__hud-label {
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-faint);
+  min-width: calc(var(--u) * 4);
+}
+
+.map__hud-value {
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   ZOOM CONTROLS
+   ========================================================================== */
+
+.map__controls {
+  position: absolute;
+  z-index: 4;
+  top: var(--gap-sm);
+  right: var(--gap-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.map__controls .pip-btn {
+  width: calc(var(--u) * 2.2);
+  height: calc(var(--u) * 2.2);
+  padding: 0;
+  font-size: var(--fs-md);
+  background: rgba(7, 11, 5, 0.7);
+}
+
+.map__controls .pip-btn:disabled {
+  color: var(--pipboy-color-deep);
+  border-color: var(--pipboy-color-deep);
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   MARKERS
+   ========================================================================== */
+
+.map-marker {
+  /* Fixed box so Mapbox can measure the anchor point correctly.
+     Do NOT set `position` here: Mapbox adds .mapboxgl-marker itself. */
+  width: calc(var(--u) * 1.8);
+  height: calc(var(--u) * 2.4);
+  cursor: pointer;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+}
+
+.map-marker__head {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: calc(var(--u) * 1.8);
+  height: calc(var(--u) * 1.8);
+  border-radius: 50%;
+  color: var(--screen-bg);
+  background: var(--pipboy-color);
+  box-shadow:
+    0 0 0 1px var(--screen-bg),
+    0 0 calc(var(--u) * 0.7) var(--pipboy-color-glow);
+  transition:
+    transform var(--snap-fast),
+    background var(--snap-fast);
+}
+
+.map-marker__icon {
+  display: block;
+  width: 62%;
+  height: 62%;
+}
+
+.map-marker__icon svg {
   width: 100%;
   height: 100%;
-  font-family: var(--font-pipboy);
+  fill: currentColor;
 }
+
+/* The stem connecting the pin head to its ground point */
+.map-marker__stem {
+  position: absolute;
+  z-index: 1;
+  top: calc(var(--u) * 1.5);
+  left: 50%;
+  width: 1px;
+  height: calc(var(--u) * 0.9);
+  transform: translateX(-50%);
+  background: linear-gradient(var(--pipboy-color), transparent);
+}
+
+.map-marker__label {
+  position: absolute;
+  z-index: 3;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: calc(var(--u) * 0.15);
+  padding: 1px var(--gap-xs);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track-tight);
+  white-space: nowrap;
+  color: var(--pipboy-hot);
+  background: rgba(7, 11, 5, 0.82);
+  border: 1px solid var(--pipboy-color-faint);
+  opacity: 0;
+  transition: opacity var(--snap-fast);
+  pointer-events: none;
+}
+
+.map-marker:hover .map-marker__head,
+.map-marker:focus-visible .map-marker__head {
+  transform: scale(1.14);
+  background: var(--pipboy-hot);
+}
+
+.map-marker:hover .map-marker__label,
+.map-marker:focus-visible .map-marker__label {
+  opacity: 1;
+}
+
+.map-marker:focus-visible {
+  outline: none;
+}
+
+.map-marker:focus-visible .map-marker__head {
+  box-shadow:
+    0 0 0 1px var(--screen-bg),
+    0 0 0 2px var(--pipboy-hot);
+}
+
+/* ==========================================================================
+   NO-SIGNAL STATE
+   ========================================================================== */
 
 .map--status {
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 12px;
+  gap: var(--gap-sm);
   text-align: center;
+  padding: var(--pad);
 }
 
 .map__status-title {
-  font-size: 1.05rem;
-  letter-spacing: 0.26em;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--track-wide);
   color: var(--pipboy-color);
-  text-shadow: 0 0 8px var(--pipboy-color-glow);
-  animation: map-blink 1.4s steps(2, end) infinite;
+  text-shadow: 0 0 calc(var(--u) * 0.5) var(--pipboy-color-glow);
 }
 
 .map__status-sub {
-  font-size: 0.66rem;
-  letter-spacing: 0.18em;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track);
   color: var(--pipboy-color-faint);
-}
-
-@keyframes map-blink {
-  50% {
-    opacity: 0.25;
-  }
-}
-
-/* ---------- markers ---------- */
-
-.map-marker {
-  /* dimensiones fijas para que mapbox mida correctamente con anchor: 'bottom';
-     NO pongas position aquí: mapbox-gl añade .mapboxgl-marker { position: absolute } */
-  width: 32px;
-  height: 44px;
-  cursor: pointer;
-}
-
-.map-marker__pin {
-  --map-marker-color: #FFF4E0;
-  --map-marker-outline: #1A1006;
-  position: absolute;
-  inset: 0;
-}
-
-.map-marker__head {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  box-sizing: border-box;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--map-marker-color);
-  border: 2px solid var(--map-marker-outline);
-  box-shadow:
-    0 2px 6px rgba(26, 16, 6, 0.45),
-    0 0 0 2px rgba(255, 244, 224, 0.25),
-    0 0 16px 4px rgba(255, 244, 224, 0.85);
-}
-
-.map-marker__tip {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 11px solid transparent;
-  border-right: 11px solid transparent;
-  border-top: 12px solid var(--map-marker-outline);
-  filter: drop-shadow(0 0 6px rgba(255, 244, 224, 0.8));
-}
-
-.map-marker__tip::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 9px solid transparent;
-  border-right: 9px solid transparent;
-  border-top: 10px solid var(--map-marker-color);
-}
-
-.map-marker__icon {
-  display: block;
-  width: 18px;
-  height: 18px;
-}
-
-.map-marker__icon svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.map-marker__icon path {
-  fill: var(--map-marker-outline);
+  max-width: 34ch;
+  line-height: 1.7;
 }

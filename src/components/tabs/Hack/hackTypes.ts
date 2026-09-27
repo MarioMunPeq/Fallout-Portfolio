@@ -1,4 +1,9 @@
-export type DifficultyId = 'novato' | 'avanzado' | 'experto' | 'maestro'
+export type DifficultyId =
+  | 'novato'
+  | 'facil'
+  | 'media'
+  | 'dificil'
+  | 'muy-dificil'
 
 export interface Difficulty {
   id: DifficultyId
@@ -10,4 +15,9 @@ export interface Difficulty {
   symbols: string
   /** Probability (0..1) that a noise cell is a random letter. */
   letterChance: number
+  /**
+   * How many candidate words sit on the board. This is the real difficulty
+   * lever: a bigger pool means a lower chance of guessing blind.
+   */
+  candidates: number
 }

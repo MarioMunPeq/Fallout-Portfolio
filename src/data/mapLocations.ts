@@ -66,6 +66,6 @@ export const MAP_LOCATIONS: readonly MapLocation[] = [
     categoria: 'trabajo',
     lng: -4.719092,
     lat: 41.654628,
-    descripcion: 'Prácticas remuneradas — puesto actual.',
+    descripcion: 'Desarrollador web — Feb 2026 a Sep 2026.',
   },
 ]

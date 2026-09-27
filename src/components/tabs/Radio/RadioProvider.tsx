@@ -1,11 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { playSfx } from '../../../utils/sfx'
 import clickSfx from '../../../assets/sfx/mechanical-click.wav'
 import tuneSfx from '../../../assets/sfx/electric-hum.wav'
-import { RADIO_STATIONS, radioSession } from './radioStations'
+import { RADIO_STATIONS, radioSession, BAND } from './radioStations'
 import { RadioContext } from './radioContext'
 import type { RadioContextValue } from './radioContext'
+
+/** How long the dial takes to settle on a new frequency. */
+const TUNE_MS = 750
+/** Rewind threshold: below this, "previous" restarts the track. */
+const RESTART_BEFORE = 3
 
 export function RadioProvider({ children }: { children: ReactNode }) {
   const [stationIndex, setStationIndex] = useState(radioSession.stationIndex)
@@ -16,28 +21,23 @@ export function RadioProvider({ children }: { children: ReactNode }) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [tuning, setTuning] = useState(false)
-  const [scanFrequency, setScanFrequency] = useState(88)
+  const [scanFrequency, setScanFrequency] = useState<number>(BAND.min)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const tuneTimerRef = useRef<number | null>(null)
+  const tuneTimer = useRef<number | undefined>(undefined)
 
-  const stationCount = RADIO_STATIONS.length
   const station = RADIO_STATIONS[stationIndex] ?? RADIO_STATIONS[0]
-  const track = station.tracks[trackIndex] ?? undefined
+  const track = station.tracks[trackIndex] ?? station.tracks[0]
+  const hasSignal = station.tracks.length > 0
 
-  useEffect(() => {
-    return () => {
-      if (tuneTimerRef.current !== null) {
-        window.clearTimeout(tuneTimerRef.current)
-      }
-    }
-  }, [])
-
+  // Playback follows (track, radioOn). Volume is applied imperatively in
+  // changeVolume so dragging the slider doesn't restart playback.
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio || !track) return
-    audio.volume = radioSession.volume / 100
-    if (radioOn) {
+    if (!audio) return
+
+    if (radioOn && track) {
+      audio.volume = volume / 100
       audio
         .play()
         .then(() => setIsPlaying(true))
@@ -45,65 +45,129 @@ export function RadioProvider({ children }: { children: ReactNode }) {
     } else {
       audio.pause()
     }
-  }, [track, radioOn])
+  }, [track, radioOn, volume])
 
+  // The dial sweep: the readout races across the band while tuning.
   useEffect(() => {
     if (!tuning) return
     const id = window.setInterval(() => {
-      setScanFrequency((value) => (value >= 108 ? 88 : value + 0.25))
+      setScanFrequency((v) => (v >= BAND.max ? BAND.min : v + 0.4))
     }, 40)
     return () => window.clearInterval(id)
   }, [tuning])
 
-  const changeStation = (target: number) => {
-    if (tuning || target === stationIndex) return
-    const wrapped = (target + stationCount) % stationCount
-    audioRef.current?.pause()
-    playSfx(clickSfx)
-    setTuning(true)
-    playSfx(tuneSfx)
-    setScanFrequency(88)
-    tuneTimerRef.current = window.setTimeout(() => {
-      radioSession.stationIndex = wrapped
-      setStationIndex(wrapped)
-      setTrackIndex(0)
-      setCurrentTime(0)
-      setDuration(0)
-      setTuning(false)
-    }, 800)
-  }
+  useEffect(() => () => window.clearTimeout(tuneTimer.current), [])
 
-  const changeTrack = (direction: -1 | 1) => {
-    const count = station.tracks.length
-    if (count === 0) return
-    playSfx(clickSfx)
-    setTrackIndex((index) => (index + direction + count) % count)
-    setCurrentTime(0)
-  }
+  const tuneTo = useCallback(
+    (target: number) => {
+      if (tuning) return
+      const wrapped = (target + RADIO_STATIONS.length) % RADIO_STATIONS.length
 
-  const togglePower = () => {
-    playSfx(clickSfx)
-    setRadioOn((value) => !value)
-  }
+      playSfx(clickSfx)
+      audioRef.current?.pause()
 
-  const seek = (seconds: number) => {
+      // Retuning the station you're already on still gives the click + sweep
+      // feedback, instead of silently doing nothing.
+      setTuning(true)
+      setScanFrequency(BAND.min)
+      playSfx(tuneSfx)
+
+      window.clearTimeout(tuneTimer.current)
+      tuneTimer.current = window.setTimeout(() => {
+        radioSession.stationIndex = wrapped
+        setStationIndex(wrapped)
+        setTrackIndex(0)
+        setCurrentTime(0)
+        setDuration(0)
+        setTuning(false)
+      }, TUNE_MS)
+    },
+    [tuning],
+  )
+
+  const tuneBy = useCallback(
+    (direction: -1 | 1) => tuneTo(stationIndex + direction),
+    [tuneTo, stationIndex],
+  )
+
+  const seek = useCallback((seconds: number) => {
     const audio = audioRef.current
     if (!audio || !Number.isFinite(seconds)) return
-    audio.currentTime = seconds
-    setCurrentTime(seconds)
-  }
+    audio.currentTime = Math.max(0, seconds)
+    setCurrentTime(audio.currentTime)
+  }, [])
 
-  const changeVolume = (value: number) => {
+  const changeTrack = useCallback(
+    (direction: -1 | 1) => {
+      const count = station.tracks.length
+      if (count === 0) return
+
+      // Going "previous" more than a few seconds in restarts the track, the
+      // way a tape deck does. It used to jump to the end of the queue.
+      if (direction === -1 && currentTime > RESTART_BEFORE) {
+        seek(0)
+        return
+      }
+
+      playSfx(clickSfx)
+      setTrackIndex((index) => {
+        const next = index + direction
+        if (next < 0) return count - 1
+        if (next >= count) return 0
+        return next
+      })
+      setCurrentTime(0)
+    },
+    [station.tracks.length, currentTime, seek],
+  )
+
+  const selectTrack = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= station.tracks.length) return
+      playSfx(clickSfx)
+      setTrackIndex(index)
+      setCurrentTime(0)
+    },
+    [station.tracks.length],
+  )
+
+  const togglePower = useCallback(() => {
+    playSfx(clickSfx)
+    setRadioOn((value) => !value)
+  }, [])
+
+  const changeVolume = useCallback((value: number) => {
     const clamped = Math.min(100, Math.max(0, value))
     radioSession.volume = clamped
     setVolume(clamped)
     const audio = audioRef.current
     if (audio) audio.volume = clamped / 100
-  }
+  }, [])
+
+  // Signal strength: full when playing, partial when merely tuned, zero while
+  // the dial is moving. Rises smoothly so the meter needle doesn't snap.
+  const targetSignal = tuning ? 0.08 : hasSignal ? station.strength : 0
+  const [signal, setSignal] = useState(0)
+
+  useEffect(() => {
+    const ceiling = targetSignal * (isPlaying ? 1 : 0.55)
+    const id = window.setInterval(() => {
+      setSignal((current) => {
+        if (current < ceiling) return Math.min(ceiling, current + 0.05)
+        if (current > ceiling) return Math.max(ceiling, current - 0.08)
+        return current
+      })
+    }, 60)
+    return () => window.clearInterval(id)
+  }, [targetSignal, isPlaying])
 
   const value: RadioContextValue = {
+    stations: RADIO_STATIONS,
+    station,
     stationIndex,
+    track,
     trackIndex,
+    trackCount: station.tracks.length,
     volume,
     radioOn,
     isPlaying,
@@ -111,12 +175,12 @@ export function RadioProvider({ children }: { children: ReactNode }) {
     duration,
     tuning,
     scanFrequency,
-    frequency: station.frequency,
-    stationName: station.name,
-    trackName: track?.name,
+    signal,
     audioRef,
-    changeStation,
+    tuneTo,
+    tuneBy,
     changeTrack,
+    selectTrack,
     togglePower,
     seek,
     changeVolume,
@@ -128,15 +192,15 @@ export function RadioProvider({ children }: { children: ReactNode }) {
       <audio
         ref={audioRef}
         src={track?.url}
-        preload="auto"
-        onTimeUpdate={(event) =>
-          setCurrentTime(event.currentTarget.currentTime)
-        }
-        onLoadedMetadata={(event) =>
-          setDuration(event.currentTarget.duration)
-        }
+        preload="none"
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => {
+          const d = e.currentTarget.duration
+          setDuration(Number.isFinite(d) ? d : 0)
+        }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        // Auto-advance wraps the station like a real broadcast schedule.
         onEnded={() => changeTrack(1)}
         onError={() => setIsPlaying(false)}
       />

@@ -2,5 +2,7 @@
   display: block;
   width: 100%;
   height: 100%;
+  /* contain, not fill: the strips are square but the box is not always, and a
+     stretched sprite is what made the old lamps look clipped. */
   object-fit: contain;
 }

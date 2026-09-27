@@ -1,13 +1,136 @@
-.boot-sequence {
-  width: 100%;
-  height: 100%;
+/* ==========================================================================
+   BOOT SEQUENCE
+   Sprite on the left, POST log on the right. The log is what makes the wait
+   feel like a device starting up rather than a loading bar.
+   ========================================================================== */
+
+.boot {
   display: grid;
-  place-items: center;
+  /* The sprite and the log are the only thing on screen while booting, so the
+     pair is centred as one block instead of hugging the top-left corner with
+     the rest of the screen empty. */
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: center;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 1.4) var(--gap-lg);
+  padding: var(--pad);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.boot-sequence__frame {
-  display: block;
-  width: min(14%, calc((100vh * 86) / 122));
+.boot__frame {
+  grid-row: 1;
+  /* Was clamp(60px, 7u, 200px): on a 1800px screen the Vault Boy came out
+     thumb-sized next to 1900px of empty CRT. */
+  width: clamp(140px, calc(var(--u) * 15), 360px);
   height: auto;
+  max-height: 100%;
   object-fit: contain;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 calc(var(--u) * 0.8) var(--pipboy-color-faint));
+  animation: boot-breathe 2.4s steps(1, end) infinite;
+}
+
+@keyframes boot-breathe {
+  0%,
+  74%,
+  100% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.6;
+  }
+  86% {
+    opacity: 0.9;
+  }
+}
+
+.boot__log {
+  grid-row: 1;
+  min-width: 0;
+  align-self: center;
+  /* Wide tracking is the Pip-Boy's signature move and it is what makes a
+     handful of lines look deliberate at a large size. */
+  font-size: var(--fs-md);
+  line-height: 1.6;
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-dim);
+}
+
+.boot__line {
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  white-space: pre;
+  animation: boot-line 180ms steps(2, end) both;
+}
+
+@keyframes boot-line {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The masthead: model and copyright, lit brighter than the self-test lines. */
+.boot__line[data-kind='title'] {
+  color: var(--pipboy-hot);
+  text-shadow: 0 0 calc(var(--u) * 0.5) var(--pipboy-color-glow);
+  letter-spacing: var(--track-wide);
+}
+
+.boot__line[data-kind='ok'] {
+  color: var(--pipboy-color);
+}
+
+.boot__line--cursor {
+  display: flex;
+  align-items: center;
+  min-height: 1.6em;
+}
+
+.boot__cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  background: var(--pipboy-color);
+  box-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+  animation: pip-blink 1.06s steps(1, end) infinite;
+}
+
+.boot__hint {
+  grid-column: 1 / -1;
+  justify-self: center;
+  align-self: end;
+  margin-top: var(--gap-lg);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-wide);
+  color: var(--pipboy-color-faint);
+  animation: pip-blink 2s steps(1, end) infinite;
+}
+
+@media (max-width: 760px) {
+  .boot {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
+
+  .boot__frame {
+    display: none;
+  }
+
+  .boot__log {
+    grid-row: 1;
+  }
+
+  .boot__line {
+    white-space: normal;
+  }
 }

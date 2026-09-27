@@ -1,41 +1,18 @@
-import type { CSSProperties } from 'react'
-import { RADIO_STATIONS } from './radioStations'
 import { useRadio } from './radioContext'
 import { RadioScope } from './RadioScope'
+import { BAND } from './radioStations'
 import './Radio.css'
 
-const TICK_COUNT = 20
-const TICK_STEP = 360 / TICK_COUNT
-
-function KnobTicks() {
-  const ticks = Array.from({ length: TICK_COUNT }, (_, i) => {
-    const angle = i * TICK_STEP
-    const isMajor = i % 5 === 0
-    return (
-      <span
-        key={i}
-        className={`radio__knob-tick ${isMajor ? 'radio__knob-tick--major' : 'radio__knob-tick--minor'}`}
-        style={{ transform: `rotate(${angle}deg)` } as CSSProperties}
-      />
-    )
-  })
-  return <div className="radio__knob-ticks" aria-hidden="true">{ticks}</div>
-}
-
-function HudCorners() {
-  return (
-    <div className="radio__corners" aria-hidden="true">
-      <span className="radio__corner radio__corner--tl" />
-      <span className="radio__corner radio__corner--tr" />
-      <span className="radio__corner radio__corner--bl" />
-      <span className="radio__corner radio__corner--br" />
-    </div>
-  )
-}
+const TICKS = 21
 
 export function Radio() {
   const {
+    stations,
+    station,
     stationIndex,
+    track,
+    trackIndex,
+    trackCount,
     volume,
     radioOn,
     isPlaying,
@@ -43,201 +20,301 @@ export function Radio() {
     duration,
     tuning,
     scanFrequency,
-    frequency,
-    trackName,
+    signal,
     audioRef,
-    changeStation,
+    tuneTo,
+    tuneBy,
     changeTrack,
+    selectTrack,
     togglePower,
     seek,
     changeVolume,
   } = useRadio()
 
-  const showFrequency = tuning ? scanFrequency.toFixed(1) : frequency
+  const offAir = trackCount === 0
+  const readout = tuning ? scanFrequency : station.frequency
+  // Where the needle sits across the dial, 0-1.
+  const needle = (readout - BAND.min) / (BAND.max - BAND.min)
+  // The knob rotates toward the station's slot in the list.
+  const knobAngle = stations.length > 1 ? (stationIndex / (stations.length - 1)) * 270 - 135 : 0
 
   return (
     <div className="radio">
-      <aside className="radio__left-col">
-        <section className="radio__panel radio__panel--tuner">
-          <HudCorners />
-          <div className="radio__dial">
-            <p className="radio__dial-title">SINTONIZADOR</p>
+      {/* ================= SINTONIZADOR ================= */}
+      <section className="radio__tuner pip-panel" aria-label="Sintonizador">
+        <h2 className="pip-label radio__panel-title">SINTONIZADOR</h2>
 
-            <div className="radio__knob-wrap">
-              <div className="radio__knob" />
-              <KnobTicks />
-              <div
-                className="radio__knob-hand"
-                style={{ '--knob-angle': `${stationIndex * 140}deg` } as CSSProperties}
+        <div
+          className="dial"
+          style={{ ['--needle' as string]: `${needle * 100}%` }}
+          role="group"
+          aria-label={`Frecuencia ${readout.toFixed(1)} megahercios`}
+        >
+          <div className="dial__scale" aria-hidden="true">
+            {Array.from({ length: TICKS }, (_, i) => (
+              <span
+                key={i}
+                className="dial__tick"
+                data-major={i % 5 === 0 || undefined}
+                style={{ ['--i' as string]: String(i) }}
               />
-              <span className="radio__knob-mark radio__knob-mark--a">A</span>
-              <span className="radio__knob-mark radio__knob-mark--b">B</span>
-            </div>
-
-            <p className="radio__freq" aria-live="polite">
-              {showFrequency}
-              <span className="radio__freq-unit">MHz</span>
-            </p>
-
-            <div className="radio__scan">
-              <button
-                type="button"
-                className="radio__scan-btn"
-                onClick={() => changeStation(stationIndex - 1)}
-                aria-label="Emisora anterior"
-              >
-                ◀
-              </button>
-              <span className="radio__scan-label">BUSCAR</span>
-              <button
-                type="button"
-                className="radio__scan-btn"
-                onClick={() => changeStation(stationIndex + 1)}
-                aria-label="Emisora siguiente"
-              >
-                ▶
-              </button>
-            </div>
+            ))}
           </div>
-        </section>
 
-        <section className="radio__panel radio__panel--list">
-          <HudCorners />
-          <div className="radio__list">
-            <p className="radio__list-title">EMISORAS</p>
-            {RADIO_STATIONS.map((preset, index) => {
-              const active = index === stationIndex
-              const offAir = preset.tracks.length === 0
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className={[
-                    'radio__station',
-                    active ? 'radio__station--active' : '',
-                    offAir ? 'radio__station--offair' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onClick={() => changeStation(index)}
-                >
-                  <span className="radio__station-mark" aria-hidden="true" />
-                  <span className="radio__station-name">{preset.name}</span>
-                </button>
-              )
-            })}
+          <div className="dial__knob" style={{ ['--turn' as string]: `${knobAngle}deg` }}>
+            <span className="dial__knob-marker" aria-hidden="true" />
           </div>
-        </section>
-      </aside>
 
-      <section className="radio__right-col">
-        <section className="radio__panel radio__panel--scope">
-          <HudCorners />
-          <div className="radio__scope-panel">
-            {trackName ? (
-              <>
-                <div className="radio__now">
-                  <span className="radio__now-name">
-                    <span className="radio__track-icon" aria-hidden="true">
-                      {isPlaying ? '♪' : '…'}
-                    </span>
-                    {trackName}
-                  </span>
-                  <span className="radio__now-times">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </span>
-                </div>
+          <div className="dial__needle" aria-hidden="true" />
+        </div>
 
-                <input
-                  className="radio__seek"
-                  type="range"
-                  min={0}
-                  max={duration > 0 ? duration : 1}
-                  step={0.1}
-                  value={Math.min(currentTime, duration > 0 ? duration : 1)}
-                  onChange={(event) => seek(Number(event.target.value))}
-                  aria-label="Posición de la pista"
-                />
-              </>
-            ) : (
-              <div className="radio__missing">
-                <p className="radio__missing-title">SEÑAL NO DISPONIBLE</p>
-                <p className="radio__missing-hint">
-                  LA CARPETA DE LA EMISORA ESTÁ VACÍA
-                </p>
-                <p className="radio__missing-sub">
-                  ARRASTRA MP3 A SYS:\AUDIO\RADIO\ESTACION-{stationIndex + 1}
-                </p>
-              </div>
-            )}
+        <div className="dial__readout">
+          <span className="dial__value" data-busy={tuning || undefined}>
+            {readout.toFixed(1)}
+          </span>
+          <span className="dial__unit">MHz FM</span>
+        </div>
 
-            <RadioScope audioRef={audioRef} isPlaying={isPlaying} />
-          </div>
-        </section>
+        <div className="radio__tune-buttons">
+          <button
+            type="button"
+            className="pip-btn radio__tune-btn"
+            onClick={() => tuneBy(-1)}
+            disabled={tuning}
+            aria-label="Emisora anterior"
+          >
+            <span aria-hidden="true">◀</span> EMISORA
+          </button>
+          <button
+            type="button"
+            className="pip-btn radio__tune-btn"
+            onClick={() => tuneBy(1)}
+            disabled={tuning}
+            aria-label="Emisora siguiente"
+          >
+            EMISORA <span aria-hidden="true">▶</span>
+          </button>
+        </div>
 
-        <section className="radio__panel radio__panel--controls">
-          <HudCorners />
-          <div className="radio__controls-panel">
-            <div className="radio__transport">
-              <button
-                type="button"
-                className="radio__transport-btn"
-                onClick={() => changeTrack(-1)}
-                aria-label="Pista anterior"
-              >
-                ⟨⟨
-              </button>
-              <button
-                type="button"
-                className="radio__transport-btn radio__transport-btn--play"
-                onClick={togglePower}
-                aria-pressed={radioOn}
-                aria-label={radioOn ? 'Apagar la radio' : 'Encender la radio'}
-              >
-                {radioOn ? 'ON' : 'OFF'}
-              </button>
-              <button
-                type="button"
-                className="radio__transport-btn"
-                onClick={() => changeTrack(1)}
-                aria-label="Pista siguiente"
-              >
-                ⟩⟩
-              </button>
-            </div>
-
-            <div className="radio__volume">
-              <span className="radio__volume-label">VOL</span>
-              <input
-                className="radio__volume-slider"
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={volume}
-                onChange={(event) => changeVolume(Number(event.target.value))}
-                aria-label="Volumen"
-              />
-              <span className="radio__volume-value">{volume}%</span>
-            </div>
-
-            {tuning && (
-              <div className="radio__tune" role="status">
-                <span className="radio__tune-text">SINTONIZANDO…</span>
-              </div>
-            )}
-          </div>
-        </section>
+        <div className="radio__tuner-foot">
+          <span className="pip-label">SEÑAL</span>
+          <SignalMeter value={signal} />
+          <span className="radio__tuner-station">{station.name}</span>
+        </div>
       </section>
+
+      {/* ================= OSCILOSCOPIO ================= */}
+      <section className="radio__scope pip-panel" aria-label="Osciloscopio y reproducción">
+        <header className="nowplaying">
+          <div className="nowplaying__text">
+            <span className="pip-label">{station.tagline}</span>
+            <h2 className="nowplaying__track">{track?.name ?? '— — —'}</h2>
+            <span className="nowplaying__artist">{track?.artist ?? station.name}</span>
+          </div>
+
+          <div className="nowplaying__time">
+            <span className="nowplaying__elapsed">{formatTime(currentTime)}</span>
+            <span className="nowplaying__total">/ {formatTime(duration)}</span>
+          </div>
+        </header>
+
+        <label className="seek">
+          <span className="pip-sr">Posición de reproducción</span>
+          <input
+            type="range"
+            min={0}
+            max={Math.max(duration, 1)}
+            step={0.5}
+            value={Math.min(currentTime, Math.max(duration, 1))}
+            onChange={(e) => seek(Number(e.target.value))}
+            disabled={offAir || duration === 0}
+            aria-valuetext={`${formatTime(currentTime)} de ${formatTime(duration)}`}
+          />
+        </label>
+
+        <RadioScope
+          audioRef={audioRef}
+          isPlaying={isPlaying}
+          tuning={tuning}
+          signal={signal}
+        />
+      </section>
+
+      {/* ================= EMISORAS + PISTAS ================= */}
+      <section className="radio__stations pip-panel" aria-label="Emisoras y pistas">
+        <div className="radio__list">
+          <h3 className="pip-label radio__panel-title">EMISORAS</h3>
+
+          <ul className="stations pip-scroll">
+            {stations.map((s, i) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  className="station"
+                  aria-selected={i === stationIndex}
+                  onClick={() => tuneTo(i)}
+                >
+                  <StationTrace strength={s.strength} active={i === stationIndex} />
+                  <span className="station__text">
+                    <span className="station__freq">{s.frequency.toFixed(1)}</span>
+                    <span className="station__name">{s.name}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="radio__list">
+          <h3 className="pip-label radio__panel-title">
+            {offAir ? 'SIN EMISIÓN' : `PISTAS · ${trackIndex + 1}/${trackCount}`}
+          </h3>
+
+          <ul className="tracks pip-scroll">
+            {offAir ? (
+              <li className="track track--empty">
+                <p className="pip-label">FRECUENCIA MUERTA</p>
+                <p className="track__hint">
+                  Arrastra archivos de audio a
+                  <br />
+                  <code>SYS:\AUDIO\RADIO\ESTACION-N</code>
+                </p>
+              </li>
+            ) : (
+              stations[stationIndex].tracks.map((t, i) => (
+                <li key={t.url}>
+                  <button
+                    type="button"
+                    className="track"
+                    aria-selected={i === trackIndex}
+                    onClick={() => selectTrack(i)}
+                  >
+                    <span className="track__index">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="track__text">
+                      <span className="track__name">{t.name}</span>
+                      <span className="track__artist">{t.artist}</span>
+                    </span>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      </section>
+
+      {/* ================= TRANSPORTE ================= */}
+      <section className="radio__transport pip-panel" aria-label="Controles">
+        <div className="radio__group">
+          <span className="pip-label">PISTA</span>
+          <div className="radio__group-buttons">
+            <button
+              type="button"
+              className="pip-btn radio__skip"
+              onClick={() => changeTrack(-1)}
+              disabled={offAir}
+              aria-label="Pista anterior"
+            >
+              <span aria-hidden="true">⏮</span>
+            </button>
+
+            <button
+              type="button"
+              className="pip-btn pip-btn--primary radio__power"
+              onClick={togglePower}
+              aria-pressed={radioOn}
+              disabled={offAir}
+            >
+              {radioOn ? 'ENCENDIDO' : 'APAGADO'}
+            </button>
+
+            <button
+              type="button"
+              className="pip-btn radio__skip"
+              onClick={() => changeTrack(1)}
+              disabled={offAir}
+              aria-label="Pista siguiente"
+            >
+              <span aria-hidden="true">⏭</span>
+            </button>
+          </div>
+        </div>
+
+        <label className="radio__group volume">
+          <span className="pip-label">VOLUMEN</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={volume}
+            onChange={(e) => changeVolume(Number(e.target.value))}
+            aria-valuetext={`${volume} por ciento`}
+          />
+          <span className="volume__value">{volume}%</span>
+        </label>
+      </section>
+
+      {tuning && (
+        <div className="radio__scanning" role="status">
+          <span className="radio__scanning-text">SINTONIZANDO…</span>
+        </div>
+      )}
     </div>
+  )
+}
+
+/**
+ * Station strength, drawn as a scope trace instead of a bar meter: a dead
+ * frequency is a flat line, a strong one draws a tall, live-looking waveform.
+ */
+function StationTrace({ strength, active }: { strength: number; active: boolean }) {
+  const points: string[] = []
+  const steps = 12
+  for (let i = 0; i <= steps; i++) {
+    const x = (i / steps) * 100
+    // A couple of harmonics so it doesn't read as a plain sine.
+    const y =
+      50 -
+      (Math.sin(i * 1.1) * 0.6 + Math.sin(i * 2.7) * 0.4) *
+        strength *
+        38
+    points.push(`${x.toFixed(2)},${y.toFixed(2)}`)
+  }
+
+  return (
+    <svg
+      className="station__scope"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <line
+        className="station__scope-axis"
+        x1="0"
+        y1="50"
+        x2="100"
+        y2="50"
+      />
+      <polyline className="station__scope-trace" points={points.join(' ')} data-active={active || undefined} />
+    </svg>
+  )
+}
+
+/** Four-segment VU meter, phosphor green up to the last bar. */
+function SignalMeter({ value }: { value: number }) {
+  const lit = Math.round(value * 4)
+  return (
+    <span className="signal" role="img" aria-label={`Señal ${Math.round(value * 100)} por ciento`}>
+      {Array.from({ length: 4 }, (_, i) => (
+        <i key={i} data-on={i < lit || undefined} data-peak={i === 3 || undefined} />
+      ))}
+    </span>
   )
 }
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
-  const minutes = Math.floor(seconds / 60)
-  const rest = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, '0')
-  return `${minutes}:${rest}`
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
 }

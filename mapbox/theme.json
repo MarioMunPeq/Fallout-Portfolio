@@ -1,0 +1,27 @@
+{
+  "$comment": [
+    "Únicamente los colores. Cualquier clave que no esté aquí (show*, font,",
+    "lightPreset, projection, center, zoom...) no se toca: el script fusiona",
+    "este objeto sobre el config existente en vez de sustituirlo.",
+    "Para reaplicar la paleta anterior, cambia los hex y vuelve a lanzar diff."
+  ],
+
+  "colorLand": "#150E07",
+  "colorWater": "#12211F",
+  "colorGreenspace": "#1B2416",
+  "colorBuildings": "#2A1D12",
+  "colorCommercial": "#221610",
+  "colorIndustrial": "#241A10",
+  "colorEducation": "#1E2A18",
+  "colorMedical": "#2A1A1C",
+
+  "colorMotorways": "#EFD9B4",
+  "colorTrunks": "#DCBE93",
+  "colorHdRoads": "#C7A87E",
+  "colorRoads": "#9A7B54",
+
+  "colorPlaceLabels": "#F2E6CE",
+  "colorRoadLabels": "#EFDFC2",
+
+  "theme": "faded"
+}

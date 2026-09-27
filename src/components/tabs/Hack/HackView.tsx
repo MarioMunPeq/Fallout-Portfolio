@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent, MutableRefObject, RefObject } from 'react'
 import { TabNav } from '../../TabNav/TabNav'
 import submoduleChangeSfx from '../../../assets/sfx/submodule_change.ogg'
 import clickSfx from '../../../assets/sfx/mechanical-click.wav'
@@ -12,403 +12,576 @@ import {
   DEFAULT_COLS,
   DEFAULT_ROWS,
   DIFFICULTIES,
+  LOCKOUT_SECONDS,
   MAX_ATTEMPTS,
-  MIN_COLS,
-  MIN_ROWS,
-  applyDud,
-  applyGuess,
-  applyInvalidSelection,
   createGame,
-  parseLineTokens,
+  guess,
+  guessableWords,
+  isWordLocked,
+  scrubDud,
+  triggerDud,
 } from './hackGame'
-import type { BoardLine, Game } from './hackGame'
+import type { Game, Line, Token } from './hackGame'
 import type { DifficultyId } from './hackTypes'
-import { getBucketsSync, loadDictionary } from './words'
+import type { WordBuckets } from './words'
+import { loadDictionary } from './words'
 import './HackView.css'
 
-const DIFFICULTY_LABELS = DIFFICULTIES.map((difficulty) => difficulty.label)
+const DIFFICULTY_LABELS = DIFFICULTIES.map((d) => d.label)
 const BOOT_TEXT =
-  'ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL\nENTER PASSWORD NOW'
-const PROBE_TEXT = 'MMMMMMMMMM'
+  'ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL\nCONTRASEÑA REQUERIDA'
+const PROBE_TEXT = 'MMMMMMMMMMMM'
+
+/** Terminal flavour text, revealed when you crack it. */
+const VAULT_PAYLOAD = [
+  '>ACCESO CONCEDIDO',
+  '>DESCIFRANDO…',
+  '',
+  '  ┌──────────────────────────────────┐',
+  '  │  VAULT-TEC · REGISTRO PÚBLICO 9  │',
+  '  └──────────────────────────────────┘',
+  '',
+  '  ESTE DISPOSITIVO NO ES UNA PÁGINA WEB.',
+  '',
+  '  ES UN PIP-BOY 3000. LO QUE ESTÁS LEYENDO',
+  '  ES UN TERMINAL QUE FUNCIONA DE VERDAD:',
+  '  LA RADIO SUENA, EL MAPA RESPONDE Y EL',
+  '  MINIJUEGO DE HACKEO ES JUGABLE.',
+  '',
+  '  MARIO MUÑOZ PEQUEÑO · VALLADOLID, ES',
+  '  DESARROLLADOR DE SOFTWARE @ DIPUTACIÓN',
+  '',
+  '  20 REPOSITORIOS · 5 PORTEFOLIOS · 1 BÚSQUEDA',
+  '  DE UN DISPOSITIVO QUE NO EXISTE.',
+  '',
+  '>SESIÓN CERRADA. BUENA SUERTE EN LA BÚSQUEDA.',
+]
 
 interface BoardSize {
   cols: number
   rows: number
 }
 
+/* ==========================================================================
+   SHELL — dictionary, boot text, measurement, difficulty
+   ========================================================================== */
+
 export function HackView() {
   const [difficultyId, setDifficultyId] = useState<DifficultyId>('novato')
-  const [game, setGame] = useState<Game | null>(null)
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>(
-    'loading',
-  )
+  const [buckets, setBuckets] = useState<WordBuckets | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [bootChars, setBootChars] = useState(0)
+  // Starts at the defaults rather than null on purpose: HackGame has to
+  // render for `.term__memory` to exist, and `.term__memory` is what we
+  // measure. Gating the render on the measurement deadlocked the tab.
+  // The real size lands a frame later and triggers one clean remount.
+  const [size, setSize] = useState<BoardSize>({
+    cols: DEFAULT_COLS,
+    rows: DEFAULT_ROWS,
+  })
+
   const memoryRef = useRef<HTMLDivElement | null>(null)
-  const sizeRef = useRef<BoardSize>({ cols: DEFAULT_COLS, rows: DEFAULT_ROWS })
+  const booted = bootChars >= BOOT_TEXT.length
+
+  /* ---- Dictionary -------------------------------------------------------- */
+  const retry = useCallback(() => {
+    setLoadFailed(false)
+    loadDictionary()
+      .then(setBuckets)
+      .catch(() => setLoadFailed(true))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
     loadDictionary()
-      .then(() => {
-        if (!cancelled) setLoadState('ready')
+      .then((loaded) => {
+        if (!cancelled) setBuckets(loaded)
       })
       .catch(() => {
-        if (!cancelled) setLoadState('error')
+        if (!cancelled) setLoadFailed(true)
       })
     return () => {
       cancelled = true
     }
   }, [])
 
-  const booted = bootChars >= BOOT_TEXT.length
-
+  /* ---- Boot text --------------------------------------------------------- */
   useEffect(() => {
-    const step = Math.max(1, Math.ceil(BOOT_TEXT.length / 60))
+    if (booted) return
+    const step = Math.max(1, Math.ceil(BOOT_TEXT.length / 70))
     const id = window.setInterval(() => {
       setBootChars((previous) => {
         const next = Math.min(previous + step, BOOT_TEXT.length)
-        if (next === BOOT_TEXT.length) window.clearInterval(id)
+        if (next >= BOOT_TEXT.length) window.clearInterval(id)
         return next
       })
     }, 16)
     return () => window.clearInterval(id)
-  }, [])
+  }, [booted])
 
+  /* ---- Measure the board -------------------------------------------------
+     getBoundingClientRect, not offsetWidth: offsetWidth is rounded to an
+     integer, which drifted the column count by a character or two. */
   useEffect(() => {
+    if (!booted) return
     const element = memoryRef.current
     if (!element) return
 
-    const measure = () => {
-      const probe = element.querySelector<HTMLSpanElement>('.terminal__probe')
+    const run = () => {
+      const probe = element.querySelector<HTMLSpanElement>('.term__probe')
       if (!probe) return
       const style = window.getComputedStyle(element)
-      const charWidth = probe.offsetWidth / PROBE_TEXT.length
+      const charWidth = probe.getBoundingClientRect().width / PROBE_TEXT.length
       const lineHeight =
         parseFloat(style.lineHeight) || parseFloat(style.fontSize) || 16
+      if (charWidth <= 0 || lineHeight <= 0) return
 
-      const cols = Math.max(
-        MIN_COLS,
-        Math.floor(element.clientWidth / charWidth),
+      const next: BoardSize = {
+        // No MIN_COLS floor: forcing a minimum here used to generate a board
+        // wider than the container, which then clipped silently.
+        cols: Math.max(24, Math.floor(element.clientWidth / charWidth)),
+        rows: Math.max(6, Math.floor(element.clientHeight / lineHeight)),
+      }
+      // Bail on no-op measurements, otherwise the observer would rebuild the
+      // board on every tick and throw away the player's progress.
+      setSize((current) =>
+        current && current.cols === next.cols && current.rows === next.rows
+          ? current
+          : next,
       )
-      const rows = Math.max(MIN_ROWS, Math.floor(element.clientHeight / lineHeight))
-      sizeRef.current = { cols, rows }
     }
 
-    measure()
-    const observer = new ResizeObserver(measure)
+    // Let layout settle for a frame before the first measurement.
+    const raf = requestAnimationFrame(run)
+    const observer = new ResizeObserver(run)
     observer.observe(element)
-    return () => observer.disconnect()
-  }, [booted])
-
-  useEffect(() => {
-    if (!booted || loadState !== 'ready') return
-    const buckets = getBucketsSync()
-    if (!buckets) return
-    const { cols, rows } = sizeRef.current
-    setGame(createGame(difficultyId, buckets, cols, rows))
-  }, [booted, loadState, difficultyId])
-
-  useEffect(() => {
-    if (!game || game.phase !== 'accessing') return
-    const id = window.setTimeout(() => {
-      setGame((current) =>
-        current && current.phase === 'accessing'
-          ? { ...current, phase: 'success' }
-          : current,
-      )
-    }, 1600)
-    return () => window.clearTimeout(id)
-  }, [game])
-
-  const skipBoot = () => {
-    if (booted) return
-    setBootChars(BOOT_TEXT.length)
-  }
-
-  const newGame = () => {
-    playSfx(restartSfx)
-    const buckets = getBucketsSync()
-    if (!buckets) return
-    const { cols, rows } = sizeRef.current
-    setGame(createGame(difficultyId, buckets, cols, rows))
-  }
-
-  const retry = () => {
-    setLoadState('loading')
-    loadDictionary()
-      .then(() => setLoadState('ready'))
-      .catch(() => setLoadState('error'))
-  }
-
-  const handleDifficulty = (label: string) => {
-    const next = DIFFICULTIES.find((difficulty) => difficulty.label === label)
-    if (!next) return
-    setDifficultyId(next.id)
-  }
-
-  const handleGuess = (wordIndex: number) => {
-    if (!game || game.phase !== 'playing') return
-    const next = applyGuess(game, wordIndex)
-    setGame(next)
-    if (next.phase === 'accessing') playSfx(okSfx)
-    else if (next.phase === 'blocked') playSfx(blockedSfx)
-    else playSfx(clickSfx)
-  }
-
-  const handleDud = (slotId: string) => {
-    if (!game || game.phase !== 'playing') return
-    setGame(applyDud(game, slotId))
-    playSfx(dudSfx)
-  }
-
-const renderLine = (line: BoardLine) => {
-    const tokens = parseLineTokens(line)
-    const lineKey = `${line.column}-${line.row}`
-    const content = line.content
-
-    const handleInvalidClick = () => {
-      if (!game || game.phase !== 'playing') return
-      const next = applyInvalidSelection(game)
-      setGame(next)
-      playSfx(clickSfx)
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
     }
+    // size is a dependency so the observer is re-attached to the fresh
+    // `.term__memory` that each remount produces. Re-measuring to the same
+    // value is a no-op, so this can't loop.
+  }, [booted, size.cols, size.rows])
 
-    const chars: ReactNode[] = []
-    let cursor = 0
-
-    tokens.forEach((token, tokenIndex) => {
-      const isDud = token.kind === 'dud'
-      const dudUsed = game ? game.usedDuds.has(token.id) : false
-
-      if (token.start > cursor) {
-        const noiseText = content.slice(cursor, token.start)
-        for (let i = 0; i < noiseText.length; i++) {
-          chars.push(
-            <span
-              key={`${lineKey}-noise-${cursor + i}`}
-              className="hack-char hack-char--noise"
-              onClick={handleInvalidClick}
-            >
-              {noiseText[i]}
-            </span>,
-          )
-        }
-      }
-
-      const tokenText = content.slice(token.start, token.end)
-      const tokenKey = `${lineKey}-token-${tokenIndex}`
-
-      if (isDud && dudUsed) {
-        chars.push(
-          <span
-            key={tokenKey}
-            className="hack-token hack-token--dud hack-token--dud--used"
-            data-token-id={token.id}
-            data-token-start={token.start}
-            data-token-end={token.end}
-          >
-            {tokenText}
-          </span>,
-        )
-      } else if (isDud) {
-        chars.push(
-          <span
-            key={tokenKey}
-            className="hack-token hack-token--dud"
-            data-token-id={token.id}
-            data-token-start={token.start}
-            data-token-end={token.end}
-            onClick={() => handleDud(token.id)}
-          >
-            {tokenText}
-          </span>,
-        )
-      } else {
-        const wordIndex = token.wordIndex as number
-        const removed = game ? game.removed.has(wordIndex) : false
-        const struck = game ? game.struck.has(wordIndex) : false
-        const displayText = struck ? '.'.repeat(tokenText.length) : tokenText
-
-        if (removed) {
-          chars.push(
-            <span
-              key={tokenKey}
-              className="hack-token hack-token--word"
-              data-token-id={token.id}
-              data-token-start={token.start}
-              data-token-end={token.end}
-            >
-              {displayText}
-            </span>,
-          )
-        } else {
-          chars.push(
-            <span
-              key={tokenKey}
-              className={`hack-token hack-token--word${struck ? ' hack-token--struck' : ''}`}
-              data-token-id={token.id}
-              data-token-start={token.start}
-              data-token-end={token.end}
-              onClick={() => handleGuess(wordIndex)}
-            >
-              {displayText}
-            </span>,
-          )
-        }
-      }
-
-      cursor = token.end
-    })
-
-    if (cursor < content.length) {
-      const noiseText = content.slice(cursor)
-      for (let i = 0; i < noiseText.length; i++) {
-        chars.push(
-          <span
-            key={`${lineKey}-noise-${cursor + i}`}
-            className="hack-char hack-char--noise"
-            onClick={handleInvalidClick}
-          >
-            {noiseText[i]}
-          </span>,
-        )
-      }
-    }
-
-    return (
-      <div key={lineKey} className="terminal__line">
-        <span className="terminal__addr">{line.address}</span>
-        <span className="terminal__content">{chars}</span>
-      </div>
-    )
-  }
-
-  if (loadState === 'loading') {
+  /* ---- Render ------------------------------------------------------------ */
+  if (loadFailed) {
     return (
       <div className="hack hack--status">
-        <p className="hack__status-text">INICIANDO TERMINAL...</p>
-        <span className="terminal__cursor" />
-      </div>
-    )
-  }
-
-  if (loadState === 'error') {
-    return (
-      <div className="hack hack--status">
-        <p className="hack__status-text">ERROR DE DICCIONARIO</p>
-        <button type="button" className="hack-button" onClick={retry}>
+        <p>ERROR: NO SE PUDO LEER EL DICCIONARIO</p>
+        <button type="button" className="pip-btn" onClick={retry}>
           REINTENTAR
         </button>
       </div>
     )
   }
 
-  const remaining = game ? MAX_ATTEMPTS - game.attemptsUsed : MAX_ATTEMPTS
+  if (!buckets) {
+    return (
+      <div className="hack hack--status">
+        <p className="pip-blink">INICIANDO TERMINAL…</p>
+      </div>
+    )
+  }
 
   return (
     <div className="hack">
-      <div className="hack__top">
-        <TabNav
-          tabs={DIFFICULTY_LABELS}
-          activeTab={game?.difficulty.label ?? DIFFICULTIES[0].label}
-          onSelect={handleDifficulty}
-          label="Dificultad"
-          confirmSfx={submoduleChangeSfx}
-          variant="secondary"
-        />
+      <TabNav
+        tabs={DIFFICULTY_LABELS}
+        activeTab={
+          DIFFICULTIES.find((d) => d.id === difficultyId)?.label ??
+          DIFFICULTY_LABELS[0]
+        }
+        onSelect={(label) => {
+          const next = DIFFICULTIES.find((d) => d.label === label)
+          if (next) setDifficultyId(next.id)
+        }}
+        label="Dificultad"
+        confirmSfx={submoduleChangeSfx}
+        variant="secondary"
+      />
+
+      <div className="term">
+        {!booted ? (
+          <pre className="term__boot term__boot--solo">
+            {BOOT_TEXT.slice(0, bootChars)}
+            <span className="term__cursor" aria-hidden="true" />
+          </pre>
+        ) : (
+          // Remounting on this key is what regenerates the board: a clean
+          // state initializer, no setState-in-effect cascade.
+          <HackGame
+            key={`${difficultyId}:${size.cols}x${size.rows}`}
+            difficultyId={difficultyId}
+            buckets={buckets}
+            cols={size.cols}
+            rows={size.rows}
+            memoryRef={memoryRef}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   GAME — owns the round. Remounts whenever difficulty or board size change.
+   ========================================================================== */
+
+interface HackGameProps {
+  difficultyId: DifficultyId
+  buckets: WordBuckets
+  cols: number
+  rows: number
+  memoryRef: RefObject<HTMLDivElement | null>
+}
+
+function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProps) {
+  const [game, setGame] = useState<Game>(() =>
+    createGame(difficultyId, buckets, cols, rows),
+  )
+  const [cursor, setCursor] = useState(0)
+  /** Ticking clock, only used to derive the lockout countdown. */
+  const [now, setNow] = useState(() => Date.now())
+  const wordButtons = useRef<(HTMLButtonElement | null)[]>([])
+
+  /* ---- Success delay ------------------------------------------------------ */
+  useEffect(() => {
+    if (game.phase !== 'accessing') return
+    const id = window.setTimeout(() => {
+      setGame((current) =>
+        current.phase === 'accessing' ? { ...current, phase: 'success' } : current,
+      )
+    }, 1700)
+    return () => window.clearTimeout(id)
+  }, [game.phase])
+
+  /* ---- Timed lockout ------------------------------------------------------
+     The remaining seconds are derived from `lockedAt` and a ticking clock
+     rather than stored, so nothing has to be synchronised in an effect body.
+     When the clock runs out the terminal reopens with fresh attempts and the
+     strikes cleared: keeping them would leave the player with full attempts
+     but a board of words they can no longer click. */
+  const lockedUntil = game.lockedAt === null ? 0 : game.lockedAt + LOCKOUT_SECONDS * 1000
+  const lockout =
+    game.lockedAt === null
+      ? 0
+      : Math.max(0, Math.ceil((lockedUntil - now) / 1000))
+
+  useEffect(() => {
+    if (game.phase !== 'locked' || game.lockedAt === null) return
+
+    const expires = game.lockedAt + LOCKOUT_SECONDS * 1000
+    const id = window.setInterval(() => {
+      const time = Date.now()
+      setNow(time)
+      if (time < expires) return
+
+      window.clearInterval(id)
+      setGame((current) =>
+        current.phase === 'locked'
+          ? {
+              ...current,
+              phase: 'playing',
+              attemptsUsed: 0,
+              struck: new Set<number>(),
+              lastLikeness: null,
+              lockedAt: null,
+              log: [
+                '>DESBLOQUEO AUTOMATICO',
+                '>CONTRASENA CAMBIADA',
+                '>INTENTOS RESTAURADOS: 4',
+              ],
+            }
+          : current,
+      )
+    }, 250)
+
+    return () => window.clearInterval(id)
+  }, [game.phase, game.lockedAt])
+
+  /* ---- Derived ------------------------------------------------------------ */
+  const guessable = useMemo(() => guessableWords(game), [game])
+  const guessableIndexes = useMemo(
+    () => new Set(guessable.map((g) => g.wordIndex)),
+    [guessable],
+  )
+  const activeIndex = guessable.length
+    ? Math.min(cursor, guessable.length - 1)
+    : -1
+
+  useEffect(() => {
+    if (activeIndex >= 0) wordButtons.current[activeIndex]?.focus()
+  }, [activeIndex])
+
+  /* ---- Actions ------------------------------------------------------------ */
+  const restart = useCallback(() => {
+    playSfx(restartSfx)
+    setGame(createGame(difficultyId, buckets, cols, rows))
+    setCursor(0)
+  }, [difficultyId, buckets, cols, rows])
+
+  const handleGuess = useCallback((wordIndex: number) => {
+    setGame((current) => {
+      if (current.phase !== 'playing') return current
+      if (isWordLocked(current, wordIndex)) return current
+      const next = guess(current, wordIndex)
+      if (next === current) return current
+
+      if (next.phase === 'accessing') playSfx(okSfx)
+      else if (next.phase === 'locked') playSfx(blockedSfx)
+      else playSfx(clickSfx)
+      return next
+    })
+  }, [])
+
+  const handleDud = useCallback((dudId: string) => {
+    setGame((current) => {
+      if (current.phase !== 'playing') return current
+      const { game: next, outcome } = triggerDud(current, dudId)
+      if (!outcome) return current
+
+      playSfx(dudSfx)
+      if (outcome.kind === 'erased') {
+        return { ...next, lines: scrubDud(next.lines, dudId, next.difficulty) }
+      }
+      return next
+    })
+  }, [])
+
+  /* ---- Keyboard ------------------------------------------------------------
+     The old view drew a blinking ">" prompt with no input handling at all and
+     `user-select: none`, so the whole game was mouse-only. */
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (game.phase !== 'playing' || guessable.length === 0) return
+
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        event.preventDefault()
+        setCursor((c) => (c + 1) % guessable.length)
+        playSfx(clickSfx)
+        break
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        event.preventDefault()
+        setCursor((c) => (c - 1 + guessable.length) % guessable.length)
+        playSfx(clickSfx)
+        break
+      case 'Home':
+        event.preventDefault()
+        setCursor(0)
+        break
+      case 'End':
+        event.preventDefault()
+        setCursor(guessable.length - 1)
+        break
+      case 'Enter':
+      case ' ':
+        event.preventDefault()
+        if (activeIndex >= 0) handleGuess(guessable[activeIndex].wordIndex)
+        break
+      case 'n':
+      case 'N':
+        event.preventDefault()
+        restart()
+        break
+    }
+  }
+
+  const remaining = MAX_ATTEMPTS - game.attemptsUsed
+  const feedback = game.lastLikeness
+
+  return (
+    <div className="term__inner" onKeyDown={handleKeyDown}>
+      <div className="term__head">
+        <span>ROBCO TERMLINK v2.7</span>
+        <span>
+          {game.difficulty.label} · {game.wordLen} CAR.
+        </span>
       </div>
 
-      <div className="hack__body">
-        <div className="terminal">
-          <div
-            className={booted ? 'terminal__boot terminal__boot--done' : 'terminal__boot'}
-            onClick={skipBoot}
-          >
-            {BOOT_TEXT.slice(0, bootChars)}
-            {!booted && <span className="terminal__cursor" />}
+      <div className="term__bar">
+        <span className="term__attempts">{'>'}INTENTOS: {remaining}</span>
+        <span className="term__blocks" aria-hidden="true">
+          {Array.from({ length: MAX_ATTEMPTS }, (_, i) => (
+            <i key={i} data-on={i < remaining || undefined} />
+          ))}
+        </span>
+        {feedback && (
+          <span key={`${feedback.word}-${feedback.value}`} className="term__feedback">
+            {feedback.value}/{feedback.length} CORRECTAS
+          </span>
+        )}
+      </div>
+
+      <div ref={memoryRef} className="term__memory">
+        <span className="term__probe" aria-hidden="true">
+          {PROBE_TEXT}
+        </span>
+        {[0, 1].map((column) => (
+          <div key={column} className="term__column" data-column={column}>
+            {game.lines
+              .filter((line) => line.column === column)
+              .map((line) => (
+                <BoardLine
+                  key={`${line.column}-${line.row}`}
+                  line={line}
+                  game={game}
+                  guessableIndexes={guessableIndexes}
+                  wordOrder={guessable}
+                  onGuess={handleGuess}
+                  onDud={handleDud}
+                  registerWord={wordButtons}
+                />
+              ))}
           </div>
+        ))}
+      </div>
 
-          {booted && (
-            <>
-              <div className="terminal__attempts">
-                <span className="terminal__attempts-text">
-                  {'>'}Attempt(s) Remaining: {remaining}
-                </span>
-                <span className="terminal__attempts-blocks" aria-hidden="true">
-                  {Array.from({ length: MAX_ATTEMPTS }, (_, index) => (
-                    <span
-                      key={index}
-                      className={
-                        index < remaining
-                          ? 'terminal__attempt-block terminal__attempt-block--on'
-                          : 'terminal__attempt-block'
-                      }
-                    >
-                      {index < remaining ? '■' : '□'}
-                    </span>
-                  ))}
-                </span>
-              </div>
-
-              <div ref={memoryRef} className="terminal__memory">
-                <span className="terminal__probe" aria-hidden="true">
-                  {PROBE_TEXT}
-                </span>
-                {game &&
-                  [0, 1].map((column) => (
-                    <div
-                      key={column}
-                      className="terminal__column"
-                      data-column={column}
-                    >
-                      {game.lines
-                        .filter((line) => line.column === column)
-                        .map((line) => renderLine(line))}
-                    </div>
-                  ))}
-              </div>
-
-              <div className="terminal__log">
-                {game &&
-                  game.log.map((line, index) => (
-                    <div key={index} className="terminal__log-line">
-                      {line}
-                    </div>
-                  ))}
-              </div>
-
-              <div className="terminal__prompt">
-                <span>{'>'} </span>
-                <span className="terminal__cursor" />
-              </div>
-            </>
-          )}
-
-          {game?.phase === 'success' && (
-            <div className="terminal__overlay">
-              <p className="terminal__overlay-line">
-                [ACCESO CONCEDIDO — CONTENIDO PENDIENTE]
-              </p>
-              <button type="button" className="hack-button" onClick={newGame}>
-                REINICIAR
-              </button>
+      <div className="term__foot">
+        <div className="term__log" aria-live="polite">
+          {game.log.map((line, i) => (
+            <div key={i} className="term__log-line">
+              {line}
             </div>
-          )}
-
-          {game?.phase === 'blocked' && (
-            <div className="terminal__overlay">
-              <p className="terminal__overlay-line">{'>'}Attempt(s) Remaining: 0</p>
-              <p className="terminal__overlay-line">{'>'}TERMINAL LOCKED</p>
-              <p className="terminal__overlay-line">
-                {'>'}PLEASE CONTACT AN ADMINISTRATOR
-              </p>
-              <button type="button" className="hack-button" onClick={newGame}>
-                REINICIAR
-              </button>
-            </div>
-          )}
+          ))}
+        </div>
+        <div className="term__hints">
+          <span>←→ SELECCIONAR</span>
+          <span>ENTER DESCIFRAR</span>
+          <span>N NUEVO</span>
         </div>
       </div>
+
+      {game.phase === 'success' && (
+        <div className="term__overlay">
+          <div className="term__payload">
+            {VAULT_PAYLOAD.map((line, i) => (
+              <p key={i} className="term__payload-line">
+                {line || '\u00a0'}
+              </p>
+            ))}
+          </div>
+          <button type="button" className="pip-btn pip-btn--primary" onClick={restart}>
+            OTRA CONTRASEÑA
+          </button>
+        </div>
+      )}
+
+      {game.phase === 'locked' && (
+        <div className="term__overlay">
+          <p className="term__overlay-line">&gt;INTENTOS RESTANTES: 0</p>
+          <p className="term__overlay-line">&gt;TERMINAL BLOQUEADO</p>
+          <p className="term__countdown">{lockout}</p>
+          <p className="term__overlay-line">
+            REINICIO AUTOMATICO · CONTRASENA CAMBIADA
+          </p>
+          <button type="button" className="pip-btn" onClick={restart}>
+            SALTAR ESPERA
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ==========================================================================
+   A single memory line
+   ========================================================================== */
+
+interface BoardLineProps {
+  line: Line
+  game: Game
+  guessableIndexes: Set<number>
+  wordOrder: { wordIndex: number; token: Token }[]
+  onGuess: (wordIndex: number) => void
+  onDud: (dudId: string) => void
+  registerWord: MutableRefObject<(HTMLButtonElement | null)[]>
+}
+
+function BoardLine({
+  line,
+  game,
+  guessableIndexes,
+  wordOrder,
+  onGuess,
+  onDud,
+  registerWord,
+}: BoardLineProps) {
+  const parts: React.ReactNode[] = []
+  let cursor = 0
+
+  line.tokens.forEach((token, i) => {
+    // Noise is plain text. It used to be one <span> per character with an
+    // onClick that charged an attempt — which is why a stray click anywhere
+    // on the board cost a quarter of your life.
+    if (token.start > cursor) {
+      parts.push(
+        <span key={`n${i}`} className="term__noise">
+          {line.content.slice(cursor, token.start)}
+        </span>,
+      )
+    }
+
+    if (token.kind === 'dud') {
+      const used = game.usedDuds.has(token.id)
+      parts.push(
+        <button
+          key={token.id}
+          type="button"
+          className="term__token term__token--dud"
+          data-used={used || undefined}
+          onClick={() => onDud(token.id)}
+          disabled={used}
+          aria-label={used ? 'Desbloqueo ya usado' : 'Desbloqueo'}
+        >
+          {token.text}
+        </button>,
+      )
+    } else {
+      const wordIndex = token.wordIndex as number
+      const locked = isWordLocked(game, wordIndex)
+      const playable = guessableIndexes.has(wordIndex)
+      const order = wordOrder.findIndex((w) => w.wordIndex === wordIndex)
+
+      parts.push(
+        <button
+          key={token.id}
+          type="button"
+          ref={
+            playable && order >= 0
+              ? (el) => {
+                  registerWord.current[order] = el
+                }
+              : undefined
+          }
+          className="term__token term__token--word"
+          data-locked={locked || undefined}
+          onClick={() => onGuess(wordIndex)}
+          disabled={locked}
+          tabIndex={playable ? 0 : -1}
+        >
+          {locked ? '·'.repeat(token.text.length) : token.text}
+        </button>,
+      )
+    }
+
+    cursor = token.end
+  })
+
+  if (cursor < line.content.length) {
+    parts.push(
+      <span key="tail" className="term__noise">
+        {line.content.slice(cursor)}
+      </span>,
+    )
+  }
+
+  return (
+    <div className="term__line">
+      <span className="term__addr">{line.address}</span>
+      <span className="term__content">{parts}</span>
     </div>
   )
 }

@@ -1,683 +1,706 @@
+/* ==========================================================================
+   RADIO — F3 layout
+   Row 1: dial (left) + oscilloscope (right)
+   Row 2: stations | tracklist
+   Row 3: transport
+   Every cell is a bounded grid/flex item, so nothing can push the status bar
+   off the screen.
+   ========================================================================== */
+
 .radio {
-  display: flex;
-  height: 100%;
-  gap: 12px;
-  padding: 10px;
-}
-
-/* ---------- Two-column layout ---------- */
-
-.radio__left-col {
-  flex: 0 0 27%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.radio__right-col {
-  flex: 1 1 73%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* ---------- Base panel with HUD corners ---------- */
-
-.radio__panel {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--pipboy-color-deep);
-  background: rgba(30, 255, 0, 0.03);
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 0.9fr) auto;
+  gap: var(--gap);
+  padding: var(--gap);
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 
-/* HUD corner marks — reused from LocationPanel pattern */
-.radio__corners {
-  position: absolute;
-  inset: -1px;
-  pointer-events: none;
-  border: 1px solid var(--pipboy-color-deep);
-}
-
-.radio__corner {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-color: var(--pipboy-color-glow);
-  border-style: solid;
-  opacity: 0.85;
-}
-
-.radio__corner--tl {
-  top: -1px;
-  left: -1px;
-  border-width: 2px 0 0 2px;
-  border-radius: 3px 0 0 0;
-}
-
-.radio__corner--tr {
-  top: -1px;
-  right: -1px;
-  border-width: 2px 2px 0 0;
-  border-radius: 0 3px 0 0;
-}
-
-.radio__corner--bl {
-  bottom: -1px;
-  left: -1px;
-  border-width: 0 0 2px 2px;
-  border-radius: 0 0 0 3px;
-}
-
-.radio__corner--br {
-  bottom: -1px;
-  right: -1px;
-  border-width: 0 2px 2px 0;
-  border-radius: 0 0 3px 0;
-}
-
-/* ---------- Tuner panel (top-left) ---------- */
-
-.radio__panel--tuner {
-  flex-shrink: 0;
-}
-
-.radio__dial {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 12px 12px;
-}
-
-.radio__dial-title {
-  font-size: 0.58rem;
-  letter-spacing: 0.26em;
-  color: var(--pipboy-color-faint);
-  text-transform: uppercase;
-}
-
-.radio__knob-wrap {
-  position: relative;
-  width: 128px;
-  height: 128px;
-}
-
-.radio__knob {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 92px;
-  height: 92px;
-  margin: -46px 0 0 -46px;
-  border-radius: 50%;
-  border: 2px solid var(--pipboy-color-glow);
-  background: radial-gradient(
-    circle at 38% 32%,
-    rgba(30, 255, 0, 0.18),
-    rgba(30, 255, 0, 0.04) 62%,
-    rgba(30, 255, 0, 0.1) 100%
-  );
-  box-shadow:
-    0 0 18px var(--pipboy-color-glow),
-    0 0 36px rgba(30, 255, 0, 0.25),
-    inset 0 0 18px rgba(30, 255, 0, 0.12);
-}
-
-.radio__knob::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 4px;
-  height: 4px;
-  margin: -2px 0 0 -2px;
-  border-radius: 50%;
-  background: rgba(30, 255, 0, 0.22);
-}
-
-/* Tick marks around the dial */
-.radio__knob-ticks {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 92px;
-  height: 92px;
-  margin: -46px 0 0 -46px;
-  pointer-events: none;
-}
-
-.radio__knob-tick {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 1px;
-  transform-origin: center 46px;
-  background: var(--pipboy-color-faint);
-  opacity: 0.6;
-}
-
-.radio__knob-tick--major {
-  height: 10px;
-  background: var(--pipboy-color-subtle);
-  opacity: 0.9;
-}
-
-.radio__knob-tick--minor {
-  height: 5px;
-  background: var(--pipboy-color-faint);
-  opacity: 0.5;
-}
-
-.radio__knob-hand {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 2px;
-  height: 38px;
-  margin: -36px 0 0 -1px;
-  background: linear-gradient(
-    180deg,
-    var(--pipboy-color) 0%,
-    var(--pipboy-color-dim) 100%
-  );
-  box-shadow:
-    0 0 8px var(--pipboy-color-glow),
-    0 0 16px rgba(30, 255, 0, 0.4);
-  transform: rotate(var(--knob-angle, 0deg));
-  transform-origin: center bottom;
-  transition: transform 0.6s steps(9, end);
-  z-index: 2;
-}
-
-.radio__knob-hand::before {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 0;
-  height: 0;
-  margin-left: -5px;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-bottom: 10px solid var(--pipboy-color);
-  filter: drop-shadow(0 2px 4px var(--pipboy-color-glow));
-}
-
-.radio__knob-hand::after {
-  content: '';
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  width: 6px;
-  height: 6px;
-  margin-left: -3px;
-  border-radius: 50%;
-  background: var(--pipboy-color);
-  box-shadow:
-    0 0 6px var(--pipboy-color-glow),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.radio__knob-mark {
-  position: absolute;
-  font-size: 0.58rem;
-  letter-spacing: 0.08em;
-  color: var(--pipboy-color-faint);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-  pointer-events: none;
-}
-
-.radio__knob-mark--a {
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.radio__knob-mark--b {
-  bottom: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.radio__freq {
-  font-size: 1.4rem;
-  line-height: 1;
-  letter-spacing: 0.08em;
-  color: var(--pipboy-color);
-  text-shadow: 0 0 8px var(--pipboy-color-glow);
-  background: rgba(3, 11, 0, 0.85);
-  border: 1px solid var(--pipboy-color-deep);
-  box-shadow:
-    inset 0 0 12px rgba(30, 255, 0, 0.08),
-    0 0 12px rgba(30, 255, 0, 0.15);
-  padding: 6px 14px 8px;
-  border-radius: 4px;
-  min-width: 90px;
+.radio__panel-title {
   text-align: center;
-}
-
-.radio__freq-unit {
-  margin-left: 6px;
-  font-size: 0.62rem;
-  letter-spacing: 0.2em;
-  color: var(--pipboy-color-faint);
-}
-
-.radio__scan {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.radio__scan-btn {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  background: none;
-  border: 1px solid var(--pipboy-color-deep);
-  color: var(--pipboy-color);
-  font-size: 0.7rem;
-  cursor: pointer;
-  transition: background 90ms steps(2, end);
-}
-
-.radio__scan-btn:hover,
-.radio__scan-btn:focus-visible {
-  background: rgba(30, 255, 0, 0.12);
-  border-color: var(--pipboy-color-glow);
-  outline: none;
-}
-
-.radio__scan-label {
-  font-size: 0.56rem;
-  letter-spacing: 0.24em;
-  color: var(--pipboy-color-faint);
-}
-
-/* ---------- Station list panel (bottom-left) ---------- */
-
-.radio__panel--list {
-  flex: 1;
-  min-height: 0;
-}
-
-.radio__list {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--pipboy-color-deep) transparent;
-}
-
-.radio__list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.radio__list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.radio__list::-webkit-scrollbar-thumb {
-  background: var(--pipboy-color-deep);
-  border: 1px solid var(--pipboy-color-deep);
-}
-
-.radio__list-title {
-  flex-shrink: 0;
-  font-size: 0.56rem;
-  letter-spacing: 0.3em;
-  color: var(--pipboy-color-faint);
-  text-align: center;
-}
-
-.radio__station {
-  flex-shrink: 0;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 8px;
-  background: none;
-  border: 1px solid transparent;
-  border-bottom: 1px dashed var(--pipboy-color-deep);
-  font: inherit;
-  cursor: pointer;
-  color: var(--pipboy-color-subtle);
-  text-align: left;
-  transition: background 90ms steps(2, end);
-}
-
-.radio__station-mark {
-  flex-shrink: 0;
-  width: 10px;
-  height: 10px;
-  border: 1px solid var(--pipboy-color-faint);
-  background: transparent;
-}
-
-.radio__station-name {
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
-}
-
-.radio__station--active {
-  color: var(--pipboy-color);
-  background: rgba(30, 255, 0, 0.1);
-  border-color: var(--pipboy-color-deep);
-}
-
-.radio__station--active .radio__station-mark {
-  border-color: var(--pipboy-color);
-  background: var(--pipboy-color);
-  box-shadow: 0 0 6px var(--pipboy-color-glow);
-}
-
-.radio__station--active .radio__station-name {
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-}
-
-.radio__station--offair {
-  opacity: 0.55;
-}
-
-.radio__station:hover:not(.radio__station--active) {
-  color: var(--pipboy-color);
-}
-
-.radio__station:hover:not(.radio__station--active) .radio__station-mark {
-  border-color: var(--pipboy-color-glow);
-}
-
-/* ---------- Oscilloscope panel (top-right) ---------- */
-
-.radio__panel--scope {
-  flex: 1 1 auto;
-  min-height: clamp(280px, 55vh, 480px);
-}
-
-.radio__scope-panel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px 12px;
-}
-
-.radio__now {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.radio__now-name {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.84rem;
-  letter-spacing: 0.12em;
-  color: var(--pipboy-color);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.radio__track-icon {
-  display: inline-block;
-  margin-right: 8px;
-  animation: radio-eq 1s steps(2, end) infinite;
-}
-
-@keyframes radio-eq {
-  50% {
-    opacity: 0.35;
-  }
-}
-
-.radio__now-times {
-  font-size: 0.66rem;
-  letter-spacing: 0.12em;
-  color: var(--pipboy-color-faint);
-  white-space: nowrap;
-}
-
-/* Oscilloscope — protagonist with inset shadow for "screen within screen" */
-.radio__scope-wrap {
-  flex: 1 1 auto;
-  min-height: clamp(180px, 38vh, 40vh);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.radio__scope-label {
-  flex-shrink: 0;
-  align-self: center;
-  font-size: 0.52rem;
-  letter-spacing: 0.3em;
-  color: var(--pipboy-color-faint);
-}
-
-.radio__scope {
-  display: block;
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-  background: transparent;
-  border: 1px solid var(--pipboy-color-deep);
-  box-shadow:
-    inset 0 0 24px rgba(30, 255, 0, 0.06),
-    inset 0 0 4px rgba(0, 0, 0, 0.6);
-}
-
-/* ---------- Controls panel (bottom-right) ---------- */
-
-.radio__panel--controls {
-  flex-shrink: 0;
-}
-
-.radio__controls-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 16px;
-}
-
-.radio__transport {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-}
-
-.radio__transport-btn {
-  min-width: 40px;
-  height: 40px;
-  padding: 0 8px;
-  display: grid;
-  place-items: center;
-  background: none;
-  border: 1px solid var(--pipboy-color-deep);
-  color: var(--pipboy-color);
-  font-size: 0.82rem;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition: background 90ms steps(2, end);
-}
-
-.radio__transport-btn:hover,
-.radio__transport-btn:focus-visible {
-  background: rgba(30, 255, 0, 0.12);
-  border-color: var(--pipboy-color-glow);
-  box-shadow: 0 0 8px var(--pipboy-color-glow);
-  outline: none;
-}
-
-.radio__transport-btn--play {
-  min-width: 58px;
-  height: 48px;
-  border-color: var(--pipboy-color-glow);
-  font-size: 0.95rem;
-}
-
-.radio__volume {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.radio__volume-label {
-  font-size: 0.62rem;
-  letter-spacing: 0.24em;
-  color: var(--pipboy-color-faint);
-}
-
-.radio__volume-value {
-  width: 42px;
-  text-align: right;
-  font-size: 0.66rem;
-  letter-spacing: 0.1em;
-  color: var(--pipboy-color);
-}
-
-/* ---------- Sliders ---------- */
-
-input[type='range'].radio__seek,
-input[type='range'].radio__volume-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 16px;
-  background: transparent;
-  cursor: pointer;
-}
-
-input[type='range'].radio__seek::-webkit-slider-runnable-track,
-input[type='range'].radio__volume-slider::-webkit-slider-runnable-track {
-  height: 5px;
-  border: 1px solid var(--pipboy-color-deep);
-  background: var(--pipboy-color-deep);
-}
-
-input[type='range'].radio__seek::-webkit-slider-thumb,
-input[type='range'].radio__volume-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 12px;
-  height: 16px;
-  margin-top: -6px;
-  background: var(--pipboy-color);
-  box-shadow: 0 0 8px var(--pipboy-color-glow);
-}
-
-input[type='range'].radio__seek::-moz-range-track,
-input[type='range'].radio__volume-slider::-moz-range-track {
-  height: 5px;
-  border: 1px solid var(--pipboy-color-deep);
-  background: var(--pipboy-color-deep);
-}
-
-input[type='range'].radio__seek::-moz-range-progress,
-input[type='range'].radio__volume-slider::-moz-range-progress {
-  height: 5px;
-  background: var(--pipboy-color);
-  box-shadow: 0 0 8px var(--pipboy-color-glow);
-}
-
-input[type='range'].radio__seek::-moz-range-thumb,
-input[type='range'].radio__volume-slider::-moz-range-thumb {
-  width: 10px;
-  height: 14px;
-  border: none;
-  border-radius: 0;
-  background: var(--pipboy-color);
-  box-shadow: 0 0 8px var(--pipboy-color-glow);
-}
-
-/* ---------- Missing signal ---------- */
-
-.radio__missing {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 2px 0 6px;
-  border-bottom: 1px dashed var(--pipboy-color-deep);
-}
-
-.radio__missing-title {
-  font-size: 0.92rem;
-  letter-spacing: 0.26em;
-  color: var(--pipboy-color);
-  text-shadow: 0 0 8px var(--pipboy-color-glow);
-  animation: radio-blink 1.4s steps(2, end) infinite;
-}
-
-@keyframes radio-blink {
-  50% {
-    opacity: 0.25;
-  }
-}
-
-.radio__missing-hint {
-  font-size: 0.64rem;
-  letter-spacing: 0.22em;
-  color: var(--pipboy-color-faint);
-}
-
-.radio__missing-sub {
-  font-size: 0.58rem;
-  letter-spacing: 0.14em;
+  padding-bottom: calc(var(--u) * 0.25);
+  border-bottom: 1px solid var(--pipboy-color-deep);
   color: var(--pipboy-color-dim);
 }
 
-/* ---------- Tuning overlay ---------- */
+/* ==========================================================================
+   SINTONIZADOR
+   ========================================================================== */
 
-.radio__tune {
-  position: absolute;
-  inset: 0;
+.radio__tuner {
+  display: grid;
+  /* title / dial / readout / tune buttons / signal foot */
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  gap: var(--gap-sm);
+  padding: var(--gap);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   DIAL
+   ========================================================================== */
+
+.dial {
+  position: relative;
   display: grid;
   place-items: center;
-  background: rgba(3, 11, 0, 0.72);
-  border: 1px solid var(--pipboy-color-deep);
+  min-height: 0;
+  min-width: 0;
+}
+
+.dial__scale {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 2%;
+  opacity: 0.55;
+}
+
+/* Ticks fan out along the bottom of the dial face */
+.dial__tick {
+  width: 1px;
+  height: calc(var(--u) * 0.9);
+  background: var(--pipboy-color-subtle);
+  transform-origin: 50% calc(var(--u) * 4.6);
+  transform: translateY(calc(var(--u) * -3.7)) rotate(calc(-60deg + var(--i) * 6deg));
+}
+
+.dial__tick[data-major] {
+  height: calc(var(--u) * 1.4);
+  background: var(--pipboy-color-dim);
+}
+
+.dial__knob {
+  position: relative;
+  width: min(100%, calc(var(--u) * 11));
+  aspect-ratio: 1;
+  max-height: 100%;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      rgba(255, 255, 255, 0.07) 0deg 3deg,
+      transparent 3deg 6deg
+    ),
+    radial-gradient(
+      circle at 36% 30%,
+      var(--pipboy-color-dim) 0%,
+      var(--pipboy-color) 32%,
+      var(--pipboy-color-subtle) 58%,
+      transparent 72%
+    );
+  transform: rotate(var(--turn, 0deg));
+  transition: transform 700ms cubic-bezier(0.3, 0.9, 0.3, 1);
+  box-shadow:
+    0 0 0 1px var(--pipboy-color-faint),
+    0 0 calc(var(--u) * 0.8) var(--pipboy-color-faint) inset;
+}
+
+.dial__knob-marker {
+  position: absolute;
+  top: 6%;
+  left: 50%;
+  width: 2px;
+  height: 26%;
+  transform: translateX(-50%);
+  background: var(--pipboy-hot);
+  box-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+}
+
+/* The needle: a vertical hairline tracking the tuned frequency */
+.dial__needle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--needle, 50%);
+  width: 1px;
+  background: linear-gradient(
+    var(--pipboy-hot),
+    var(--pipboy-color) 40%,
+    transparent
+  );
+  box-shadow: 0 0 calc(var(--u) * 0.5) var(--pipboy-color-glow);
+  transition: left 700ms cubic-bezier(0.3, 0.9, 0.3, 1);
+}
+
+/* ---- Readout ------------------------------------------------------------- */
+.dial__readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--gap-xs);
+  padding: calc(var(--u) * 0.3) 0;
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 1px var(--pipboy-color-deep) inset;
+}
+
+.dial__value {
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-hot);
+  text-shadow: 0 0 calc(var(--u) * 0.5) var(--pipboy-color-glow);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.dial__value[data-busy] {
+  animation: pip-blink 0.14s steps(1, end) infinite;
+}
+
+.dial__unit {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-faint);
+}
+
+.radio__tune-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap-sm);
+}
+
+.radio__tune-btn {
+  min-width: 0;
+}
+
+.radio__tuner-foot {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-sm);
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--pipboy-color-deep);
+}
+
+.radio__tuner-station {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-dim);
+  text-align: right;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Signal meter -------------------------------------------------------- */
+.signal {
+  display: flex;
+  gap: calc(var(--u) * 0.08);
+}
+
+.signal i {
+  width: calc(var(--u) * 1.3);
+  height: calc(var(--u) * 0.8);
+  background: var(--pipboy-color-deep);
+}
+
+.signal i[data-on] {
+  background: var(--pipboy-color);
+  box-shadow: 0 0 calc(var(--u) * 0.3) var(--pipboy-color-glow);
+}
+
+.signal i[data-peak][data-on] {
+  background: var(--pipboy-hot);
+}
+
+/* ==========================================================================
+   OSCILOSCOPIO + REPRODUCCIÓN
+   ========================================================================== */
+
+.radio__scope {
+  position: relative;
+  display: grid;
+  /* now playing / seek / scope */
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: var(--gap-sm);
+  padding: var(--gap);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.nowplaying {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gap);
+  min-width: 0;
+}
+
+.nowplaying__text {
+  display: grid;
+  gap: calc(var(--u) * 0.1);
+  min-width: 0;
+}
+
+.nowplaying__track {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color);
+  text-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.15;
+}
+
+.nowplaying__artist {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nowplaying__time {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.nowplaying__elapsed {
+  font-size: var(--fs-lg);
+  color: var(--pipboy-hot);
+}
+
+.nowplaying__total {
+  font-size: var(--fs-sm);
+  color: var(--pipboy-color-faint);
+}
+
+/* ---- Seek bar ------------------------------------------------------------ */
+.seek input {
+  width: 100%;
+}
+
+/* ---- The scope face ------------------------------------------------------ */
+.scope {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 1px var(--pipboy-color-deep) inset;
+  overflow: hidden;
+}
+
+.scope__label {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--u) * 0.3);
+  left: var(--gap-sm);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-wide);
+  color: var(--pipboy-color-faint);
   pointer-events: none;
 }
 
-.radio__tune::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -40px;
-  height: 42px;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    rgba(30, 255, 0, 0.2),
-    transparent
-  );
-  animation: radio-scanline 0.85s linear infinite;
+.scope__canvas {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
 }
 
-@keyframes radio-scanline {
-  to {
-    transform: translateY(calc(100% + 90px));
+/* Faint graticule over the trace, plus the vertical centre axis the
+   oscilloscope sweeps around */
+.scope__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to bottom,
+      transparent calc(50% - 1px),
+      var(--pipboy-color-deep) calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 calc(25% - 1px),
+      var(--pipboy-color-deep) calc(25% - 1px) 25%
+    ),
+    repeating-linear-gradient(
+      to right,
+      transparent 0 calc(12.5% - 1px),
+      var(--pipboy-color-deep) calc(12.5% - 1px) 12.5%
+    );
+}
+
+/* The CRT scanlines, kept over the trace so the scope reads as part of the
+   device instead of a bare canvas */
+.scope__scan {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.16) 0 1px,
+    transparent 1px calc(var(--u) * 0.3)
+  );
+}
+
+/* ---- Scanning overlay ----------------------------------------------------
+   Covers the whole radio, not just the scope panel: it has to resolve against
+   .radio, which is the positioned ancestor. */
+.radio__scanning {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-content: center;
+  pointer-events: none;
+  background: rgba(7, 11, 5, 0.72);
+}
+
+.radio__scanning-text {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--track-wide);
+  color: var(--pipboy-hot);
+  text-shadow: 0 0 calc(var(--u) * 0.6) var(--pipboy-color-glow);
+  animation: pip-blink 0.5s steps(1, end) infinite;
+}
+
+/* ==========================================================================
+   EMISORAS + PISTAS
+   ========================================================================== */
+
+.radio__stations {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: var(--gap);
+  padding: var(--gap);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.radio__list {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--gap-sm);
+  min-height: 0;
+  min-width: 0;
+}
+
+.stations,
+.tracks {
+  display: grid;
+  gap: calc(var(--u) * 0.12);
+  align-content: start;
+  min-height: 0;
+  padding-right: var(--gap-xs);
+}
+
+.station {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-sm);
+  width: 100%;
+  padding: var(--gap-sm) var(--gap-xs);
+  text-align: left;
+  border-left: 2px solid transparent;
+  transition:
+    background var(--snap-fast),
+    border-color var(--snap-fast);
+}
+
+.station:hover {
+  background: var(--panel-fill);
+}
+
+.station[aria-selected='true'] {
+  background: var(--panel-fill-active);
+  border-left-color: var(--pipboy-color);
+}
+
+/* Station strength as a scope trace: flat line on a dead frequency */
+.station__scope {
+  width: calc(var(--u) * 4.5);
+  height: calc(var(--u) * 2.2);
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.station__scope-axis {
+  stroke: var(--pipboy-color-deep);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.station__scope-trace {
+  fill: none;
+  stroke: var(--pipboy-color-dim);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  transition: stroke var(--snap-fast);
+}
+
+.station__scope-trace[data-active] {
+  stroke: var(--pipboy-hot);
+  filter: drop-shadow(0 0 calc(var(--u) * 0.3) var(--pipboy-color-glow));
+}
+
+.station__text {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-sm);
+  min-width: 0;
+}
+
+.station__freq {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.station__name {
+  font-size: var(--fs-md);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.station[aria-selected='true'] .station__name {
+  color: var(--pipboy-hot);
+}
+
+/* ---- Tracks -------------------------------------------------------------- */
+.track {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-sm);
+  width: 100%;
+  padding: var(--gap-sm) var(--gap-xs);
+  text-align: left;
+  transition: background var(--snap-fast);
+}
+
+.track:hover {
+  background: var(--panel-fill);
+}
+
+.track[aria-selected='true'] {
+  background: var(--panel-fill-active);
+  box-shadow: inset 2px 0 0 var(--pipboy-color);
+}
+
+.track__index {
+  font-size: var(--fs-xs);
+  color: var(--pipboy-color-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+.track[aria-selected='true'] .track__index {
+  color: var(--pipboy-color-dim);
+}
+
+.track__text {
+  display: grid;
+  min-width: 0;
+}
+
+.track__name {
+  font-size: var(--fs-md);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track[aria-selected='true'] .track__name {
+  color: var(--pipboy-hot);
+}
+
+.track__artist {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-deep);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track--empty {
+  display: grid;
+  gap: var(--gap-sm);
+  padding: var(--gap) var(--gap-xs);
+  text-align: center;
+}
+
+.track__hint {
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-faint);
+}
+
+.track__hint code {
+  font-family: inherit;
+  color: var(--pipboy-color-dim);
+}
+
+/* ==========================================================================
+   TRANSPORTE — one strip, controls grouped by what they act on
+   ========================================================================== */
+
+.radio__transport {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-lg);
+  padding: var(--gap) var(--gap-lg);
+  min-height: 0;
+}
+
+.radio__group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-sm);
+  min-width: 0;
+}
+
+.radio__group-buttons {
+  display: flex;
+  align-items: stretch;
+  gap: var(--gap-sm);
+}
+
+.radio__skip {
+  min-width: calc(var(--u) * 3.4);
+  font-size: var(--fs-md);
+  padding: var(--gap-xs) var(--gap-sm);
+}
+
+.radio__power {
+  min-width: calc(var(--u) * 9);
+  font-size: var(--fs-sm);
+  padding: var(--gap-xs) var(--gap);
+}
+
+.radio__transport .pip-btn:disabled {
+  color: var(--pipboy-color-deep);
+  border-color: var(--pipboy-color-deep);
+  cursor: not-allowed;
+}
+
+.volume {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.volume input {
+  width: 100%;
+}
+
+.volume__value {
+  font-size: var(--fs-sm);
+  color: var(--pipboy-color-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: calc(var(--u) * 3.4);
+  text-align: right;
+}
+
+/* ==========================================================================
+   RANGE INPUTS — hand-styled for both engines
+   ========================================================================== */
+
+.seek input,
+.volume input {
+  -webkit-appearance: none;
+  appearance: none;
+  height: calc(var(--u) * 0.8);
+  background: var(--pipboy-color-deep);
+  box-shadow: 0 0 0 1px var(--pipboy-color-faint) inset;
+  cursor: pointer;
+}
+
+.seek input::-webkit-slider-thumb,
+.volume input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: calc(var(--u) * 0.6);
+  height: calc(var(--u) * 1.7);
+  background: var(--pipboy-color);
+  box-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+  cursor: grab;
+}
+
+.seek input::-moz-range-thumb,
+.volume input::-moz-range-thumb {
+  width: calc(var(--u) * 0.6);
+  height: calc(var(--u) * 1.7);
+  border: none;
+  border-radius: 0;
+  background: var(--pipboy-color);
+  box-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+  cursor: grab;
+}
+
+.seek input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  .radio {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+
+  .dial {
+    display: none;
+  }
+
+  .radio__tuner {
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .radio__stations {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 0.8fr) minmax(0, 1.2fr);
   }
 }
 
-.radio__tune-text {
-  font-size: 0.84rem;
-  letter-spacing: 0.3em;
-  color: var(--pipboy-color);
-  text-shadow: 0 0 8px var(--pipboy-color-glow);
-  animation: radio-blink 0.28s steps(2, end) infinite;
+@media (max-width: 620px) {
+  .radio__transport {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--gap);
+  }
+}
+
+@media (max-height: 620px) {
+  .dial {
+    display: none;
+  }
+
+  .radio__tuner {
+    grid-template-rows: auto auto auto auto;
+  }
 }

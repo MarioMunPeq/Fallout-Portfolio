@@ -1,7 +1,4 @@
-import { useEffect } from 'react'
-import type { MapLocation, MapCategory } from '../../../data/mapLocations'
-import { playSfx } from '../../../utils/sfx'
-import clickSfx from '../../../assets/sfx/mechanical-click.wav'
+import type { MapCategory, MapLocation } from '../../../data/mapLocations'
 import studyIcon from '../../../assets/icons/map/graduate-cap.svg?raw'
 import workIcon from '../../../assets/icons/map/briefcase.svg?raw'
 import './LocationPanel.css'
@@ -11,64 +8,70 @@ const CATEGORY_ICONS: Record<MapCategory, string> = {
   trabajo: workIcon,
 }
 
+const CATEGORY_LABEL: Record<MapCategory, string> = {
+  estudio: 'EDUCACIÓN',
+  trabajo: 'EMPLEO',
+}
+
 interface LocationPanelProps {
   location: MapLocation
   onClose: () => void
+  /** Re-centres the camera on this location. */
+  onFocus?: () => void
 }
 
-export function LocationPanel({ location, onClose }: LocationPanelProps) {
-  useEffect(() => {
-    playSfx(clickSfx)
-  }, [location.id])
-
+export function LocationPanel({ location, onClose, onFocus }: LocationPanelProps) {
   return (
     <aside
-      className="locpanel"
+      className="locpanel pip-panel"
       role="dialog"
       aria-label={`Ubicación: ${location.nombre}`}
     >
-      <div className="locpanel__corners">
-        <span className="locpanel__corner locpanel__corner--tl" aria-hidden="true" />
-        <span className="locpanel__corner locpanel__corner--tr" aria-hidden="true" />
-        <span className="locpanel__corner locpanel__corner--bl" aria-hidden="true" />
-        <span className="locpanel__corner locpanel__corner--br" aria-hidden="true" />
-      </div>
-
-      <header className="locpanel__header">
-        <span className="locpanel__title">LOCATION DATA</span>
+      <header className="locpanel__head">
+        <span className="pip-label">LOCATION DATA</span>
         <button
           type="button"
           className="locpanel__close"
           onClick={onClose}
           aria-label="Cerrar panel de ubicación"
         >
-          [X]
+          ✕
         </button>
       </header>
 
-      <hr className="locpanel__header-separator" />
-
-      <div className="locpanel__name-row">
+      <div className="locpanel__title">
         <span className="locpanel__icon" aria-hidden="true">
           {CATEGORY_ICONS[location.categoria]}
         </span>
         <h2 className="locpanel__name">{location.nombre}</h2>
       </div>
 
-      <hr className="locpanel__separator" />
-
-      <div className="locpanel__meta">
-        <dl className="locpanel__meta-grid">
-          <dt className="locpanel__meta-label">CLASSIFICATION</dt>
-          <dd className="locpanel__meta-value">
-            {location.categoria === 'estudio' ? 'EDUCATION' : 'EMPLOYMENT'}
+      <dl className="locpanel__meta">
+        <div>
+          <dt className="pip-label">CLASIF.</dt>
+          <dd>{CATEGORY_LABEL[location.categoria]}</dd>
+        </div>
+        <div>
+          <dt className="pip-label">ESTADO</dt>
+          <dd>ARCHIVADO</dd>
+        </div>
+        <div>
+          <dt className="pip-label">COORD.</dt>
+          <dd>
+            {location.lat.toFixed(4)} N
+            <br />
+            {Math.abs(location.lng).toFixed(4)} O
           </dd>
-          <dt className="locpanel__meta-label">STATUS</dt>
-          <dd className="locpanel__meta-value">ARCHIVED</dd>
-        </dl>
-      </div>
+        </div>
+      </dl>
 
       <p className="locpanel__desc">{location.descripcion}</p>
+
+      {onFocus && (
+        <button type="button" className="pip-btn locpanel__focus" onClick={onFocus}>
+          CENTRAR VISTA
+        </button>
+      )}
     </aside>
   )
 }

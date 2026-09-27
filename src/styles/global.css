@@ -1,3 +1,12 @@
+/* ==========================================================================
+   RESET + GLOBAL DEVICE LAYOUT
+   --------------------------------------------------------------------------
+   The layout rule that prevents every overflow bug this project had:
+   any flex/grid child gets min-height:0 / min-width:0, so a tall child can
+   never push its siblings out of the screen. Combined with the fixed
+   grid-template-rows on .pip-screen, a tab physically cannot overflow.
+   ========================================================================== */
+
 *,
 *::before,
 *::after {
@@ -17,11 +26,273 @@ body {
   background: var(--page-bg);
   color: var(--pipboy-color);
   font-family: var(--font-pipboy);
-  /* Crisp pixels suit the terminal aesthetic */
+  font-size: var(--fs-md);
   -webkit-font-smoothing: none;
   text-rendering: optimizeSpeed;
+  /* The device is a fixed object on a desk, not a scrolling page. */
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 #root {
   overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+img,
+svg,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+::selection {
+  background: var(--pipboy-color);
+  color: var(--screen-bg);
+}
+
+/* ---- Focus: visible, but made of light ---------------------------------- */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 1px solid var(--pipboy-hot);
+  outline-offset: 2px;
+}
+
+/* ---- Scrollbars: part of the device, not the OS -------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--pipboy-color-faint) transparent;
+}
+
+::-webkit-scrollbar {
+  width: calc(var(--u) * 0.7);
+  height: calc(var(--u) * 0.7);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--pipboy-color-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--pipboy-color-faint);
+  border: 1px solid var(--screen-bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--pipboy-color-subtle);
+}
+
+/* ==========================================================================
+   SCREEN SKELETON
+   Every tab is a .pip-body: one grid row, one bounded box, no exceptions.
+   ========================================================================== */
+
+.pip-screen {
+  display: grid;
+  /* The module labels are silkscreened on the case, so the screen is just
+     content + the operator gauge. */
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--pipboy-color);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track-tight);
+}
+
+.pip-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.pip-body > * {
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ==========================================================================
+   PANEL PRIMITIVE
+   F3 Pip-Boy panels are rectangles with 45° cut corners. This is the most
+   recognisable shape in the game's UI and it was entirely missing.
+   ========================================================================== */
+
+.pip-panel {
+  position: relative;
+  background: var(--panel-fill);
+  border: 1px solid var(--panel-border);
+  clip-path: polygon(
+    var(--chamfer) 0,
+    100% 0,
+    100% calc(100% - var(--chamfer)),
+    calc(100% - var(--chamfer)) 100%,
+    0 100%,
+    0 var(--chamfer)
+  );
+}
+
+.pip-panel--flat {
+  clip-path: none;
+}
+
+/* Filled variant for the active/selected row */
+.pip-panel--active {
+  background: var(--panel-fill-active);
+  border-color: var(--pipboy-color-dim);
+}
+
+/* ==========================================================================
+   BUTTON PRIMITIVE
+   ========================================================================== */
+
+.pip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-xs);
+  padding: calc(var(--u) * 0.5) var(--gap);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--pipboy-color);
+  background: transparent;
+  border: 1px solid var(--pipboy-color-dim);
+  clip-path: polygon(
+    var(--chamfer) 0,
+    100% 0,
+    100% calc(100% - var(--chamfer)),
+    calc(100% - var(--chamfer)) 100%,
+    0 100%,
+    0 var(--chamfer)
+  );
+  transition:
+    color var(--snap-fast),
+    background var(--snap-fast),
+    border-color var(--snap-fast);
+}
+
+.pip-btn:hover,
+.pip-btn:focus-visible {
+  color: var(--pipboy-hot);
+  background: var(--panel-fill-active);
+  border-color: var(--pipboy-color);
+}
+
+.pip-btn--primary {
+  color: var(--screen-bg);
+  background: var(--pipboy-color);
+  border-color: var(--pipboy-color);
+}
+
+.pip-btn--primary:hover,
+.pip-btn--primary:focus-visible {
+  color: var(--screen-bg);
+  background: var(--pipboy-hot);
+  border-color: var(--pipboy-hot);
+}
+
+.pip-btn[aria-pressed='true'] {
+  color: var(--screen-bg);
+  background: var(--pipboy-color);
+}
+
+/* ==========================================================================
+   TYPE UTILITIES
+   ========================================================================== */
+
+.pip-label {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-wide);
+  color: var(--pipboy-color-faint);
+  text-transform: uppercase;
+}
+
+.pip-heading {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color);
+  text-shadow: 0 0 calc(var(--u) * 0.5) var(--pipboy-color-glow);
+}
+
+.pip-bright {
+  color: var(--pipboy-hot);
+  text-shadow: 0 0 calc(var(--u) * 0.6) var(--pipboy-color-glow);
+}
+
+.pip-dim {
+  color: var(--pipboy-color-dim);
+}
+
+/* Phosphor bloom for values that should feel "lit" */
+.pip-glow {
+  text-shadow:
+    0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow),
+    0 0 calc(var(--u) * 1.2) var(--pipboy-color-faint);
+}
+
+/* Blinking cursor / "live" indicator */
+.pip-blink {
+  animation: pip-blink 1.06s steps(1, end) infinite;
+}
+
+@keyframes pip-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Scrollable region that must never blow out its parent */
+.pip-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+/* Visually hidden but available to assistive tech */
+.pip-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

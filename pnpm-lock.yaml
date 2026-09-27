@@ -20,9 +20,6 @@ importers:
       simple-icons:
         specifier: ^16.32.0
         version: 16.32.0
-      word-list:
-        specifier: ^4.1.0
-        version: 4.1.0
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -922,10 +919,6 @@ packages:
     engines: {node: '>= 8'}
     hasBin: true
 
-  word-list@4.1.0:
-    resolution: {integrity: sha512-4vtKyH8lGfaY8DHLTKQDfDxPixdK6BC/2W38TsPE07Wc8uPrMIbEO3quxBFSa2BfsDyG6pW47UEN/9tfYxN6BA==}
-    engines: {node: '>=18'}
-
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
@@ -1726,8 +1719,6 @@ snapshots:
   which@2.0.2:
     dependencies:
       isexe: 2.0.0
-
-  word-list@4.1.0: {}
 
   word-wrap@1.2.5: {}
 

@@ -1,85 +1,47 @@
-.offscreen-indicators {
+/* ==========================================================================
+   OFF-SCREEN POI INDICATORS
+   A pip sits on the border of the viewport pointing at the hidden location.
+   The arrow is a single rotated triangle, so corners work without any
+   per-edge special-casing.
+   ========================================================================== */
+
+.offscreen {
   position: absolute;
   inset: 0;
+  z-index: 3;
   pointer-events: none;
-  z-index: 10;
   overflow: hidden;
 }
 
-.offscreen-indicator {
+.offscreen__pip {
   position: absolute;
-  left: var(--indicator-x);
-  top: var(--indicator-y);
-  transform: translate(-50%, -50%) rotate(var(--indicator-rotation));
-  transform-origin: center center;
-  width: 36px;
-  height: 36px;
-  filter: drop-shadow(0 0 10px rgba(255, 244, 224, 0.95));
+  top: 0;
+  left: 0;
+  transform: translate3d(var(--x), var(--y), 0);
 }
 
-.offscreen-indicator__arrow {
+.offscreen__arrow {
+  display: block;
   width: 0;
   height: 0;
-  border-left: 11px solid transparent;
-  border-right: 11px solid transparent;
-  border-bottom: 20px solid #FFF4E0;
-  filter:
-    drop-shadow(0 0 6px rgba(255, 244, 224, 0.95))
-    drop-shadow(0 0 14px rgba(255, 244, 224, 0.8))
-    drop-shadow(0 0 22px rgba(255, 244, 224, 0.55));
-  animation: offscreen-pulse 3s ease-in-out infinite;
-}
-
-.offscreen-indicator[data-edge='top'] .offscreen-indicator__arrow {
-  border-bottom: 20px solid #FFF4E0;
-  border-top: none;
-}
-
-.offscreen-indicator[data-edge='bottom'] .offscreen-indicator__arrow {
-  border-top: 20px solid #FFF4E0;
-  border-bottom: none;
-}
-
-.offscreen-indicator[data-edge='left'] .offscreen-indicator__arrow {
-  border-right: 20px solid #FFF4E0;
-  border-bottom: 11px solid transparent;
-  border-top: 11px solid transparent;
-  border-left: none;
-}
-
-.offscreen-indicator[data-edge='right'] .offscreen-indicator__arrow {
-  border-left: 20px solid #FFF4E0;
-  border-bottom: 11px solid transparent;
-  border-top: 11px solid transparent;
-  border-right: none;
+  border-left: calc(var(--u) * 0.42) solid transparent;
+  border-right: calc(var(--u) * 0.42) solid transparent;
+  border-bottom: calc(var(--u) * 0.62) solid var(--pipboy-color);
+  filter: drop-shadow(0 0 calc(var(--u) * 0.3) var(--pipboy-color-glow));
+  /* rotate() points the triangle's tip along the ray; the translate() pulls
+     it back so the tip, not the centroid, lands on the border point */
+  transform: translate(-50%, -85%) rotate(var(--angle));
+  transform-origin: 50% 85%;
+  animation: offscreen-pulse 1.8s steps(1, end) infinite;
 }
 
 @keyframes offscreen-pulse {
-  0%, 100% {
-    opacity: 0.98;
-    filter:
-      drop-shadow(0 0 6px rgba(255, 244, 224, 0.85))
-      drop-shadow(0 0 14px rgba(255, 244, 224, 0.6));
-  }
-  50% {
+  0%,
+  70%,
+  100% {
     opacity: 1;
-    filter:
-      drop-shadow(0 0 8px rgba(255, 244, 224, 1))
-      drop-shadow(0 0 20px rgba(255, 244, 224, 0.85))
-      drop-shadow(0 0 32px rgba(255, 244, 224, 0.6));
   }
-}
-
-.offscreen-indicator::before {
-  content: '';
-  position: absolute;
-  inset: -6px;
-  background: radial-gradient(
-    circle at center,
-    rgba(255, 244, 224, 0.4) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
-  border-radius: 50%;
-  opacity: 0.85;
+  80% {
+    opacity: 0.3;
+  }
 }

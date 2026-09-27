@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { Map } from 'mapbox-gl'
 import { MAP_LOCATIONS } from '../../../data/mapLocations'
 import type { MapLocation } from '../../../data/mapLocations'
@@ -6,13 +7,59 @@ import './OffscreenPOIIndicators.css'
 
 interface OffscreenIndicator {
   id: string
+  nombre: string
   x: number
   y: number
+  /** Degrees, pointing from the viewport centre toward the POI. */
   rotation: number
-  edge: 'top' | 'right' | 'bottom' | 'left'
 }
 
-function projectLocation(map: Map, location: MapLocation): { x: number; y: number } | null {
+/**
+ * Place a marker for a POI that is outside the viewport, on the border of the
+ * visible rect, along the ray from the centre toward the POI.
+ *
+ * The previous version snapped the point onto whichever full edge it judged
+ * dominant, so a POI off in a corner produced an arrow parked on an edge
+ * pointing at empty space. Intersecting the ray with the rect and keeping the
+ * angle handles corners correctly with no edge special-casing at all.
+ */
+function edgePoint(
+  centerX: number,
+  centerY: number,
+  targetX: number,
+  targetY: number,
+  width: number,
+  height: number,
+  margin: number,
+): { x: number; y: number; rotation: number } {
+  const dx = targetX - centerX
+  const dy = targetY - centerY
+  const angle = Math.atan2(dy, dx)
+
+  // The POI is directly behind the centre (degenerate ray): push it up.
+  if (dx === 0 && dy === 0) {
+    return { x: centerX, y: margin, rotation: -90 }
+  }
+
+  const halfWidth = Math.max(1, width / 2 - margin)
+  const halfHeight = Math.max(1, height / 2 - margin)
+
+  const cosA = Math.cos(angle)
+  const sinA = Math.sin(angle)
+
+  // Distance along the ray until it crosses the inset rect.
+  const tx = cosA === 0 ? Infinity : halfWidth / Math.abs(cosA)
+  const ty = sinA === 0 ? Infinity : halfHeight / Math.abs(sinA)
+  const t = Math.min(tx, ty)
+
+  return {
+    x: centerX + cosA * t,
+    y: centerY + sinA * t,
+    rotation: (angle * 180) / Math.PI,
+  }
+}
+
+function project(map: Map, location: MapLocation): { x: number; y: number } | null {
   try {
     const point = map.project([location.lng, location.lat])
     return { x: point.x, y: point.y }
@@ -21,162 +68,83 @@ function projectLocation(map: Map, location: MapLocation): { x: number; y: numbe
   }
 }
 
-function isInViewport(x: number, y: number, bounds: DOMRect, padding = 0): boolean {
-  return (
-    x >= -padding &&
-    x <= bounds.width + padding &&
-    y >= -padding &&
-    y <= bounds.height + padding
-  )
-}
-
-function calculateEdgeIntersection(
-  centerX: number,
-  centerY: number,
-  targetX: number,
-  targetY: number,
-  bounds: DOMRect,
-  margin = 16
-): { x: number; y: number; edge: 'top' | 'right' | 'bottom' | 'left'; rotation: number } {
-  const dx = targetX - centerX
-  const dy = targetY - centerY
-  const angle = Math.atan2(dy, dx)
-
-  const halfWidth = bounds.width / 2 - margin
-  const halfHeight = bounds.height / 2 - margin
-
-  const cosA = Math.cos(angle)
-  const sinA = Math.sin(angle)
-
-  const tX = cosA > 0 ? halfWidth / cosA : cosA < 0 ? -halfWidth / cosA : Infinity
-  const tY = sinA > 0 ? halfHeight / sinA : sinA < 0 ? -halfHeight / sinA : Infinity
-
-  const t = Math.min(Math.abs(tX), Math.abs(tY))
-
-  const x = centerX + cosA * t
-  const y = centerY + sinA * t
-
-  const edge = Math.abs(tX) < Math.abs(tY)
-    ? (cosA > 0 ? 'right' : 'left')
-    : (sinA > 0 ? 'bottom' : 'top')
-
-  const rotation = angle * (180 / Math.PI)
-
-  return { x, y, edge, rotation }
-}
-
-function clampToEdge(
-  x: number,
-  y: number,
-  edge: 'top' | 'right' | 'bottom' | 'left',
-  bounds: DOMRect,
-  margin = 16
-): { x: number; y: number } {
-  const maxX = bounds.width - margin
-  const maxY = bounds.height - margin
-  const minCoord = margin
-
-  switch (edge) {
-    case 'top':
-      return { x: Math.max(minCoord, Math.min(maxX, x)), y: margin }
-    case 'bottom':
-      return { x: Math.max(minCoord, Math.min(maxX, x)), y: maxY }
-    case 'left':
-      return { x: margin, y: Math.max(minCoord, Math.min(maxY, y)) }
-    case 'right':
-      return { x: maxX, y: Math.max(minCoord, Math.min(maxY, y)) }
-  }
-}
-
 export function OffscreenPOIIndicators({ map }: { map: Map | null }) {
   const [indicators, setIndicators] = useState<OffscreenIndicator[]>([])
-  const animationFrameRef = useRef<number | undefined>(undefined)
-  const boundsRef = useRef<DOMRect | undefined>(undefined)
+  const frame = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     if (!map) return
 
-    const updateIndicators = () => {
-      if (!map) return
+    const MARGIN = 22
 
+    const update = () => {
       const bounds = map.getContainer().getBoundingClientRect()
-      boundsRef.current = bounds
+      if (bounds.width === 0 || bounds.height === 0) return
+
       const centerX = bounds.width / 2
       const centerY = bounds.height / 2
-
-      const newIndicators: OffscreenIndicator[] = []
+      const next: OffscreenIndicator[] = []
 
       for (const location of MAP_LOCATIONS) {
-        const projected = projectLocation(map, location)
-        if (!projected) continue
+        const p = project(map, location)
+        if (!p) continue
 
-        const { x, y } = projected
+        const inside =
+          p.x >= 0 && p.x <= bounds.width && p.y >= 0 && p.y <= bounds.height
+        if (inside) continue
 
-        if (isInViewport(x, y, bounds, 8)) continue
-
-        const { x: edgeX, y: edgeY, edge, rotation } = calculateEdgeIntersection(
+        const { x, y, rotation } = edgePoint(
           centerX,
           centerY,
-          x,
-          y,
-          bounds,
-          16
+          p.x,
+          p.y,
+          bounds.width,
+          bounds.height,
+          MARGIN,
         )
 
-        const { x: clampedX, y: clampedY } = clampToEdge(edgeX, edgeY, edge, bounds, 16)
-
-        newIndicators.push({
-          id: location.id,
-          x: clampedX,
-          y: clampedY,
-          rotation,
-          edge,
-        })
+        next.push({ id: location.id, nombre: location.nombre, x, y, rotation })
       }
 
-      setIndicators(newIndicators)
+      setIndicators(next)
     }
 
+    // 'move' already covers zoom/rotate/pitch, so one listener is enough;
+    // 'resize' is separate because it doesn't always fire 'move'.
     const onMove = () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-      animationFrameRef.current = requestAnimationFrame(updateIndicators)
+      if (frame.current !== undefined) cancelAnimationFrame(frame.current)
+      frame.current = requestAnimationFrame(update)
     }
 
     map.on('move', onMove)
-    map.on('zoom', onMove)
-    map.on('rotate', onMove)
-    map.on('pitch', onMove)
     map.on('resize', onMove)
-
-    updateIndicators()
+    update()
 
     return () => {
       map.off('move', onMove)
-      map.off('zoom', onMove)
-      map.off('rotate', onMove)
-      map.off('pitch', onMove)
       map.off('resize', onMove)
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+      if (frame.current !== undefined) cancelAnimationFrame(frame.current)
     }
   }, [map])
 
   if (indicators.length === 0) return null
 
   return (
-    <div className="offscreen-indicators" aria-hidden="true">
+    <div className="offscreen" aria-hidden="true">
       {indicators.map((indicator) => (
-        <div
+        <span
           key={indicator.id}
-          className="offscreen-indicator"
-          style={{
-            '--indicator-x': `${indicator.x}px`,
-            '--indicator-y': `${indicator.y}px`,
-            '--indicator-rotation': `${indicator.rotation}deg`,
-          } as React.CSSProperties}
-          data-edge={indicator.edge}
+          className="offscreen__pip"
+          style={
+            {
+              '--x': `${indicator.x}px`,
+              '--y': `${indicator.y}px`,
+              '--angle': `${indicator.rotation}deg`,
+            } as CSSProperties
+          }
         >
-          <div className="offscreen-indicator__arrow" />
-        </div>
+          <span className="offscreen__arrow" />
+        </span>
       ))}
     </div>
   )

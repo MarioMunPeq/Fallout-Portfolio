@@ -1,442 +1,392 @@
+/* ==========================================================================
+   STATUS — character sheet
+   Rows: identity / S.P.E.C.I.A.L. / readout+conditions.
+   One bounded grid; the status bar can never be pushed off.
+   ========================================================================== */
+
 .status {
-  position: relative;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 16px 24px;
-  gap: 16px;
-  font-family: var(--font-pipboy);
-  color: var(--pipboy-color);
-}
-
-/* Content block (header + main) centered vertically as a unit */
-.status__content-block {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  display: grid;
+  /* Identity / S.P.E.C.I.A.L. / readout+conditions. The stat block gets a
+     bigger share than the readout, which used to be mostly empty space. */
+  grid-template-rows: auto minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: var(--gap);
+  padding: var(--pad);
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
-/* ---------- Header - centered identity ---------- */
+/* ---- Identity ------------------------------------------------------------ */
 .status__header {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding-bottom: 16px;
+  gap: var(--gap);
+  padding-bottom: var(--gap-xs);
   border-bottom: 1px solid var(--pipboy-color-deep);
+}
+
+/* Original Vault Boy head sprite, tinted via mask */
+.status__portrait {
+  flex: 0 0 auto;
+  width: calc(var(--u) * 3.2);
+  height: calc(var(--u) * 4.2);
+  background: var(--pipboy-color-dim);
+  -webkit-mask: url('../../../assets/images/stats/head_1.png') center / contain
+    no-repeat;
+  mask: url('../../../assets/images/stats/head_1.png') center / contain no-repeat;
+  opacity: 0.85;
 }
 
 .status__identity {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  text-align: center;
+  display: grid;
+  gap: calc(var(--u) * 0.12);
+  min-width: 0;
 }
 
 .status__name {
-  margin: 0;
-  font-size: clamp(1.4rem, 3.5vw, 2.2rem);
-  letter-spacing: 0.18em;
+  font-size: var(--fs-xl);
+  letter-spacing: var(--track);
   color: var(--pipboy-color);
-  text-shadow: 0 0 10px var(--pipboy-color-glow);
+  text-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+  text-transform: uppercase;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status__class {
-  margin: 0;
-  font-size: clamp(0.85rem, 2vw, 1.1rem);
-  letter-spacing: 0.22em;
-  color: var(--pipboy-color-faint);
-  text-transform: uppercase;
-}
-
-/* ---------- Main area - SPECIAL + conditions in normal flow ---------- */
-.status__main {
-  display: grid;
-  grid-template-rows: auto auto;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-  min-height: 0;
-  align-content: start;
-}
-
-/* SPECIAL section spans all 3 columns, row 1 */
-.status__special {
-  grid-column: 1 / -1;
-  grid-row: 1;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  min-height: 0;
+  align-items: baseline;
+  gap: var(--gap-xs);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-dim);
+  text-transform: uppercase;
 }
 
-.status__special-title {
-  margin: 0 0 8px 0;
-  font-size: clamp(0.7rem, 1.8vw, 1rem);
-  letter-spacing: 0.35em;
+.status__class-key {
   color: var(--pipboy-color-faint);
-  text-transform: uppercase;
+}
+
+/* ---- Section title ------------------------------------------------------- */
+.status__section-title {
+  font-size: var(--fs-md);
+  letter-spacing: var(--track-max);
+  color: var(--pipboy-color-dim);
   text-align: center;
+  text-transform: uppercase;
 }
 
-/* The 3-column grid for SPECIAL stats - centered, limited width */
-.special-grid {
+/* ==========================================================================
+   S.P.E.C.I.A.L. — 4 + 3, the headline of the STATUS tab
+   ========================================================================== */
+
+.status__special {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: clamp(24px, 4vw, 48px);
-  width: 100%;
-  max-width: 700px;
-  justify-content: center;
-  margin: 0 auto;
-  align-items: center;
-}
-
-/* Three vertical columns for SPECIAL stats */
-.special-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(4px, 1vh, 10px);
-  padding: clamp(3px, 0.6vh, 6px) 0;
+  /* section title / cells */
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--gap-xs);
+  min-height: 0;
   min-width: 0;
 }
 
-.special-col--center {
-  align-self: center;
+.special-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Seven stats in two rows of equal height; the empty 8th slot is free. */
+  grid-auto-rows: minmax(0, 1fr);
+  gap: var(--gap-sm);
+  min-height: 0;
+  min-width: 0;
 }
 
 .special-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 3px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: border-color 0.1s steps(2, end), box-shadow 0.1s steps(2, end);
+  display: grid;
+  /* letter / lamp / value / tag / pips */
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  justify-items: center;
+  align-content: stretch;
+  gap: calc(var(--u) * 0.2);
+  padding: var(--gap-sm) calc(var(--u) * 0.3);
+  min-height: 0;
   min-width: 0;
+  background: var(--panel-fill);
+  border: 1px solid var(--pipboy-color-deep);
+  clip-path: polygon(
+    var(--chamfer) 0,
+    100% 0,
+    100% calc(100% - var(--chamfer)),
+    calc(100% - var(--chamfer)) 100%,
+    0 100%,
+    0 var(--chamfer)
+  );
+  transition:
+    background var(--snap-fast),
+    border-color var(--snap-fast);
 }
 
-.special-cell:hover,
-.special-cell:focus-visible {
-  border-color: var(--pipboy-color-glow);
-  box-shadow: inset 0 0 10px var(--pipboy-color-deep);
-  outline: none;
+.special-cell:hover {
+  background: var(--panel-fill-active);
 }
 
-.special-cell__sigla {
-  font-size: clamp(0.55rem, 1vw, 0.75rem);
-  letter-spacing: 0.1em;
-  color: var(--pipboy-color-faint);
+.special-cell[aria-pressed='true'] {
+  background: var(--panel-fill-active);
+  border-color: var(--pipboy-color-dim);
+}
+
+.special-cell__letter {
+  font-size: var(--fs-xl);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-dim);
   line-height: 1;
-  text-shadow: 0 0 4px var(--pipboy-color-glow);
-  white-space: nowrap;
 }
 
-/* Icon size scales with viewport/container - min reduced for small screens */
-.special-cell__icon {
-  width: clamp(45px, 7vh, 90px);
-  height: clamp(45px, 7vh, 90px);
-  filter: drop-shadow(0 0 4px var(--pipboy-color-deep));
+.special-cell[aria-pressed='true'] .special-cell__letter {
+  color: var(--pipboy-hot);
+  text-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+}
+
+/* Deterministic square box, sized from the flexible row so it can never
+   overflow a short cell. The old version used `height: 100%` on the image
+   against an auto-height parent, so it fell back to the sprite's 240x240
+   intrinsic size and got clipped by the cell. */
+.special-cell__lamp {
+  display: block;
+  align-self: center;
+  justify-self: center;
+  height: min(100%, calc(var(--u) * 8.5));
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+
+.special-cell__lamp > div {
+  width: 100%;
+  height: 100%;
+}
+
+.special-cell__lamp img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 calc(var(--u) * 0.3) var(--pipboy-color-faint));
+}
+
+.special-cell[aria-pressed='true'] .special-cell__lamp img {
+  opacity: 1;
+  filter: drop-shadow(0 0 calc(var(--u) * 0.5) var(--pipboy-color-glow));
 }
 
 .special-cell__value {
-  font-size: clamp(0.95rem, 1.8vw, 1.5rem);
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--track-tight);
   color: var(--pipboy-color);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
+  font-variant-numeric: tabular-nums;
   line-height: 1;
-  font-weight: 700;
 }
 
-/* Conditions bar - row 2 of main grid, spans all columns */
-.status__conditions-bar {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: clamp(10px, 2vw, 20px);
-  padding: 8px 12px;
-  border-top: 1px solid var(--pipboy-color-deep);
-  border-bottom: 1px solid var(--pipboy-color-deep);
-  background: rgba(30, 255, 0, 0.02);
-  margin-top: 0;
+.special-cell[aria-pressed='true'] .special-cell__value {
+  color: var(--pipboy-hot);
 }
 
-.status-condition {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  border-radius: 0;
-  background: rgba(30, 255, 0, 0.03);
-  transition: border-color 0.1s steps(2, end), background 0.1s steps(2, end);
-  min-width: 70px;
-}
-
-.status-condition:hover {
-  border-color: var(--pipboy-color-subtle);
-  background: rgba(30, 255, 0, 0.07);
-}
-
-.status-condition__icon {
-  width: clamp(36px, 7vh, 60px);
-  height: clamp(36px, 7vh, 60px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 0 4px var(--pipboy-color-deep));
-}
-
-.status-condition__icon svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.status-condition__info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  text-align: center;
-}
-
-.status-condition__label {
-  font-size: clamp(0.4rem, 1vw, 0.55rem);
-  letter-spacing: 0.15em;
+.special-cell__tag {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track-tight);
   color: var(--pipboy-color-faint);
-  text-transform: uppercase;
-  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-.status-condition__value {
-  font-size: clamp(0.55rem, 1.4vw, 0.85rem);
-  letter-spacing: 0.08em;
+/* Ten pips: the value stays readable even if a lamp strip is missing */
+.special-cell__pips {
+  display: flex;
+  gap: calc(var(--u) * 0.06);
+  width: 80%;
+  max-width: calc(var(--u) * 5);
+}
+
+.special-cell__pips i {
+  flex: 1 1 0;
+  height: calc(var(--u) * 0.24);
+  background: var(--pipboy-color-deep);
+}
+
+.special-cell__pips i[data-on] {
+  background: var(--pipboy-color);
+  box-shadow: 0 0 calc(var(--u) * 0.2) var(--pipboy-color-faint);
+}
+
+/* ==========================================================================
+   LOWER — readout (left) + conditions (right)
+   ========================================================================== */
+
+.status__lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--gap);
+  min-height: 0;
+  min-width: 0;
+}
+
+.status__readout {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--gap-sm);
+  padding: var(--gap);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.status__readout-body {
+  font-size: var(--fs-md);
+  line-height: 1.6;
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color-dim);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.status__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap-sm);
+  padding-top: var(--gap-xs);
+  border-top: 1px solid var(--pipboy-color-deep);
+}
+
+.status__facts dd {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track-tight);
   color: var(--pipboy-color);
-  text-shadow: 0 0 4px var(--pipboy-color-glow);
-  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* ---------- Footer - pinned to bottom ---------- */
-.status__footer {
-  margin-top: auto;
-  padding-top: 8px;
-  border-top: 1px solid var(--pipboy-color-deep);
-}
-
-.status__stats {
+/* ---- Conditions ---------------------------------------------------------- */
+.status__conditions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.status__stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 8px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--gap-sm);
+  padding: var(--gap);
+  min-height: 0;
+  min-width: 0;
+  background: var(--panel-fill);
   border: 1px solid var(--pipboy-color-deep);
-  background: rgba(30, 255, 0, 0.02);
+  clip-path: polygon(
+    var(--chamfer) 0,
+    100% 0,
+    100% calc(100% - var(--chamfer)),
+    calc(100% - var(--chamfer)) 100%,
+    0 100%,
+    0 var(--chamfer)
+  );
 }
 
-.status__stat-label {
-  font-size: clamp(0.55rem, 1.2vw, 0.7rem);
-  letter-spacing: 0.22em;
-  color: var(--pipboy-color-faint);
-  text-transform: uppercase;
-  line-height: 1;
+.conditions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: var(--gap-sm);
+  min-height: 0;
 }
 
-.status__stat-value {
-  font-size: clamp(1rem, 2.2vw, 1.3rem);
-  letter-spacing: 0.12em;
+.condition {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  justify-items: center;
+  align-content: center;
+  gap: calc(var(--u) * 0.2);
+  padding: var(--gap-xs);
+  min-height: 0;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.condition__icon {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 0;
   color: var(--pipboy-color);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-  line-height: 1;
 }
 
-/* Responsive: stack on smaller viewports */
+/* Square box + contain, so the glyph never stretches or clips */
+.condition__icon svg {
+  width: auto;
+  height: 100%;
+  max-height: calc(var(--u) * 3.4);
+  aspect-ratio: 1 / 1;
+  fill: currentColor;
+  filter: drop-shadow(0 0 calc(var(--u) * 0.3) var(--pipboy-color-faint));
+}
+
+.condition__label {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-faint);
+}
+
+.condition__value {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track-tight);
+  color: var(--pipboy-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.condition__track {
+  width: 100%;
+  height: calc(var(--u) * 0.26);
+  background: var(--pipboy-color-deep);
+  overflow: hidden;
+}
+
+.condition__fill {
+  display: block;
+  height: 100%;
+  background: var(--pipboy-color);
+  box-shadow: 0 0 calc(var(--u) * 0.3) var(--pipboy-color-glow);
+  transition: width 400ms steps(10, end);
+}
+
+.condition[data-empty] .condition__icon {
+  color: var(--pipboy-color-deep);
+  filter: none;
+}
+
+.condition[data-empty] .condition__value {
+  color: var(--pipboy-color-deep);
+}
+
+.condition[data-warn] .condition__value {
+  color: var(--pipboy-hot);
+  animation: pip-blink 1.2s steps(1, end) infinite;
+}
+
+/* ---- Responsive ---------------------------------------------------------- */
 @media (max-width: 900px) {
-  .status {
-    padding: 12px 16px;
-    gap: 12px;
-  }
-
-  .status__header {
-    gap: 4px;
-    padding-bottom: 12px;
-  }
-
-  .status__name {
-    font-size: clamp(1.2rem, 4vw, 1.8rem);
-  }
-
-  .status__class {
-    font-size: clamp(0.75rem, 2.2vw, 0.95rem);
-  }
-
-  .status__main {
-    gap: 10px;
-  }
-
-  .status__special-title {
-    font-size: clamp(0.65rem, 1.6vw, 0.9rem);
-    margin-bottom: 6px;
-  }
-
   .special-grid {
-    gap: clamp(18px, 3vw, 36px);
-    max-width: 100%;
-  }
-
-  .special-col {
-    gap: clamp(3px, 0.8vh, 8px);
-  }
-
-  .special-cell__icon {
-    width: clamp(40px, 6vh, 80px);
-    height: clamp(40px, 6vh, 80px);
-  }
-
-  .special-cell__sigla {
-    font-size: clamp(0.5rem, 0.9vw, 0.7rem);
-  }
-
-  .special-cell__value {
-    font-size: clamp(0.85rem, 1.6vw, 1.3rem);
-  }
-
-  .status__conditions-bar {
-    gap: clamp(8px, 1.5vw, 16px);
-    padding: 6px 10px;
-  }
-
-  .status-condition {
-    padding: 6px 8px;
-    min-width: 60px;
-  }
-
-  .status-condition__icon {
-    width: clamp(30px, 5vh, 50px);
-    height: clamp(30px, 5vh, 50px);
-  }
-
-  .status-condition__label {
-    font-size: clamp(0.35rem, 0.9vw, 0.5rem);
-  }
-
-  .status-condition__value {
-    font-size: clamp(0.5rem, 1.2vw, 0.75rem);
-  }
-
-  .status__stats {
-    gap: 10px;
-  }
-
-  .status__stat {
-    padding: 8px 6px;
-  }
-
-  .status__stat-label {
-    font-size: clamp(0.48rem, 1.1vw, 0.62rem);
-  }
-
-  .status__stat-value {
-    font-size: clamp(0.85rem, 2vw, 1.1rem);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (max-height: 700px) {
-  .status {
-    gap: 10px;
-    padding: 8px 16px;
+@media (max-width: 760px) {
+  .status__lower {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
-  .status__header {
-    gap: 2px;
-    padding-bottom: 8px;
+  .status__facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--gap-xs);
   }
+}
 
-  .status__name {
-    font-size: clamp(1.1rem, 3vw, 1.5rem);
-  }
-
-  .status__class {
-    font-size: clamp(0.65rem, 1.6vw, 0.85rem);
-  }
-
-  .status__main {
-    gap: 8px;
-  }
-
-  .status__special-title {
-    margin-bottom: 4px;
-    font-size: clamp(0.6rem, 1.4vw, 0.8rem);
-  }
-
-  .special-grid {
-    gap: clamp(16px, 3vw, 30px);
-  }
-
-  .special-col {
-    gap: clamp(3px, 0.6vh, 6px);
-  }
-
-  .special-cell__icon {
-    width: clamp(38px, 5vh, 70px);
-    height: clamp(38px, 5vh, 70px);
-  }
-
-  .special-cell__sigla {
-    font-size: clamp(0.48rem, 0.9vw, 0.65rem);
-  }
-
-  .special-cell__value {
-    font-size: clamp(0.8rem, 1.4vw, 1.1rem);
-  }
-
-  .status__conditions-bar {
-    gap: clamp(6px, 1.2vw, 14px);
-    padding: 5px 8px;
-  }
-
-  .status-condition {
-    padding: 5px 7px;
-    min-width: 55px;
-  }
-
-  .status-condition__icon {
-    width: clamp(26px, 4.5vh, 44px);
-    height: clamp(26px, 4.5vh, 44px);
-  }
-
-  .status-condition__label {
-    font-size: clamp(0.32rem, 0.8vw, 0.45rem);
-  }
-
-  .status-condition__value {
-    font-size: clamp(0.45rem, 1vw, 0.65rem);
-  }
-
-  .status__stat {
-    padding: 5px 4px;
-  }
-
-  .status__stat-label {
-    font-size: clamp(0.4rem, 0.9vw, 0.5rem);
-  }
-
-  .status__stat-value {
-    font-size: clamp(0.7rem, 1.6vw, 0.9rem);
+@media (max-height: 560px) {
+  .status__special {
+    display: none;
   }
 }

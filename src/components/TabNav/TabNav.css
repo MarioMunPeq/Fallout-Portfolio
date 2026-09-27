@@ -1,68 +1,149 @@
+/* ==========================================================================
+   TAB BAR
+   F3's tabs are wide, heavily tracked uppercase blocks; the active one is
+   solid and slightly proud of the strip.
+   ========================================================================== */
+
 .tabnav {
   display: flex;
-  gap: 2px;
-  padding: 6px 8px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--pipboy-color-deep);
-  outline: none;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+  background: rgba(0, 0, 0, 0.35);
 }
 
-.tabnav:focus-visible {
-  outline: 1px dashed var(--pipboy-color-faint);
-  outline-offset: -1px;
+/* ---- Primary: the module selector --------------------------------------- */
+.tabnav--primary {
+  border-bottom: 1px solid var(--panel-border);
 }
 
-.tabnav__tab {
-  flex: 1;
-  padding: 6px 4px;
-  border: 1px solid transparent;
-  background: none;
-  color: var(--pipboy-color-faint);
-  font-family: var(--font-pipboy);
-  font-size: 0.9rem;
-  letter-spacing: 0.12em;
-  cursor: pointer;
-}
-
-.tabnav__tab--highlight {
-  border-color: var(--pipboy-color-glow);
-  color: var(--pipboy-color);
-  box-shadow: inset 0 0 8px var(--pipboy-color-deep);
-}
-
-.tabnav__tab--active {
-  color: var(--pipboy-color);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-  border-bottom-color: var(--pipboy-color);
-}
-
-.tabnav--secondary {
-  gap: 8px;
-  padding: 2px 8px;
-  border-bottom: none;
+.tabnav--primary .tabnav__tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: var(--gap-xs);
+  padding: calc(var(--u) * 0.7) var(--gap-xs);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--track-wide);
+  text-transform: uppercase;
+  color: var(--pipboy-color-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    color var(--snap-fast),
+    background var(--snap-fast),
+    text-shadow var(--snap-fast);
+}
+
+/* Chamfered ends so the strip reads as machined segments, not a table row */
+.tabnav--primary .tabnav__tab::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(
+    10% 0,
+    100% 0,
+    100% 100%,
+    0 100%,
+    0 28%
+  );
+  background: transparent;
+  transition: background var(--snap-fast);
+  pointer-events: none;
+}
+
+.tabnav--primary .tabnav__tab:hover {
+  color: var(--pipboy-color-dim);
+  background: var(--pipboy-color-deep);
+}
+
+.tabnav--primary .tabnav__tab[aria-selected='true'] {
+  color: var(--screen-bg);
+  background: var(--pipboy-color);
+  text-shadow: none;
+  font-weight: bold;
+}
+
+/* Bright underline on the active tab, like a filament heating up */
+.tabnav--primary .tabnav__tab[aria-selected='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--pipboy-hot);
+  box-shadow: 0 0 calc(var(--u) * 0.5) var(--pipboy-color-glow);
+}
+
+/* The 1-6 hardware shortcut badge */
+.tabnav__key {
+  display: grid;
+  place-items: center;
+  width: calc(var(--u) * 1.15);
+  height: calc(var(--u) * 1.15);
+  flex: 0 0 auto;
+  font-size: var(--fs-2xs);
+  letter-spacing: 0;
+  color: inherit;
+  border: 1px solid currentColor;
+  opacity: 0.45;
+}
+
+.tabnav--primary .tabnav__tab[aria-selected='true'] .tabnav__key {
+  opacity: 0.8;
+}
+
+.tabnav__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Secondary: the in-tab sub-selector ---------------------------------- */
+.tabnav--secondary {
+  justify-content: center;
+  gap: var(--gap-xs);
+  padding: calc(var(--u) * 0.4) var(--pad);
+  border-bottom: 1px solid var(--pipboy-color-deep);
+  background: transparent;
+  flex: 0 0 auto;
 }
 
 .tabnav--secondary .tabnav__tab {
   flex: 0 0 auto;
-  padding: 2px 10px;
-  font-size: 0.7rem;
-  letter-spacing: 0.2em;
-  color: var(--pipboy-color-subtle);
+  padding: calc(var(--u) * 0.3) var(--gap);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+  color: var(--pipboy-color-faint);
+  border: 1px solid transparent;
+  transition:
+    color var(--snap-fast),
+    border-color var(--snap-fast),
+    background var(--snap-fast);
 }
 
-.tabnav--secondary .tabnav__tab--highlight {
-  border-color: var(--pipboy-color-glow);
-  color: var(--pipboy-color);
-  box-shadow: none;
-}
-
-.tabnav--secondary .tabnav__tab--active {
-  color: var(--pipboy-color);
-  text-shadow: 0 0 6px var(--pipboy-color-glow);
-  border-bottom-color: var(--pipboy-color);
-}
-
-.tabnav--secondary .tabnav__tab:hover:not(.tabnav__tab--active) {
+.tabnav--secondary .tabnav__tab:hover {
   color: var(--pipboy-color-dim);
+}
+
+.tabnav--secondary .tabnav__tab[aria-selected='true'] {
+  color: var(--pipboy-color);
+  border-color: var(--pipboy-color-dim);
+  background: var(--panel-fill-active);
+}
+
+/* ---- Narrow viewports: shed the number badges, shrink the tracking -------- */
+@media (max-width: 720px) {
+  .tabnav--primary .tabnav__tab {
+    font-size: var(--fs-xs);
+    letter-spacing: var(--track-tight);
+  }
+
+  .tabnav__key {
+    display: none;
+  }
 }
