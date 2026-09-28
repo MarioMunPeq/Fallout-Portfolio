@@ -17,8 +17,6 @@ export const DEFAULT_ROWS = 16
 
 const DUD_TYPES = ['<>', '{}', '[]', '()'] as const
 const DUD_COUNT = 3
-/** A word may never fill more than this fraction of a line. */
-const MAX_WORD_FILL = 0.5
 
 /**
  * Fallback pool, grouped by length. The curated dictionary can come up short
@@ -45,59 +43,68 @@ const NOISE_EXTRA: Record<DifficultyId, string> = {
   dificil: '()[]{}/\\=+-*#%',
   'muy-dificil': '()[]{}/\\=+-*#%@&_|"$^~',
 }
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 const HEX = '0123456789ABCDEF'
 
 /**
- * The five FNV difficulties. Word length grows and, more importantly, the
- * number of candidates grows — a bigger pool is a lower chance of guessing
- * blind, which is the real difficulty lever.
+ * The five difficulties. Word length grows and, more importantly, the number
+ * of candidate words on the board grows — more decoys is the real lever,
+ * because every one of them is a plausible answer you can be wrong about.
+ *
+ * There is no letter-mix knob on purpose. The dump is symbols only, so the
+ * candidate words are the only letters anywhere on the screen. That is the
+ * search: you scan a wall of punctuation for a run of capitals. An earlier
+ * version sprinkled random letters through the noise and it buried the very
+ * thing the player was looking for.
  */
 export const DIFFICULTIES: readonly Difficulty[] = [
-  { id: 'novato', label: 'NOVATO', minLen: 4, maxLen: 4, symbols: NOISE_EXTRA.novato, letterChance: 0.11, candidates: 5 },
-  { id: 'facil', label: 'FÁCIL', minLen: 5, maxLen: 5, symbols: NOISE_EXTRA.facil, letterChance: 0.1, candidates: 8 },
-  { id: 'media', label: 'MEDIA', minLen: 6, maxLen: 7, symbols: NOISE_EXTRA.media, letterChance: 0.09, candidates: 10 },
-  { id: 'dificil', label: 'DIFÍCIL', minLen: 8, maxLen: 9, symbols: NOISE_EXTRA.dificil, letterChance: 0.08, candidates: 12 },
-  { id: 'muy-dificil', label: 'MUY DIFÍCIL', minLen: 10, maxLen: 11, symbols: NOISE_EXTRA['muy-dificil'], letterChance: 0.07, candidates: 15 },
+  { id: 'novato', label: 'NOVATO', minLen: 4, maxLen: 4, symbols: NOISE_EXTRA.novato, candidates: 5 },
+  { id: 'facil', label: 'FÁCIL', minLen: 5, maxLen: 5, symbols: NOISE_EXTRA.facil, candidates: 8 },
+  { id: 'media', label: 'MEDIA', minLen: 6, maxLen: 7, symbols: NOISE_EXTRA.media, candidates: 10 },
+  { id: 'dificil', label: 'DIFÍCIL', minLen: 8, maxLen: 9, symbols: NOISE_EXTRA.dificil, candidates: 12 },
+  { id: 'muy-dificil', label: 'MUY DIFÍCIL', minLen: 10, maxLen: 11, symbols: NOISE_EXTRA['muy-dificil'], candidates: 15 },
 ]
 
 /* ==========================================================================
    BOARD MODEL
-   Tokens are resolved once at build time instead of re-parsed on every
-   render, and noise is plain text with no per-character spans — which is
-   only possible because clicking noise no longer costs an attempt.
+
+   The board is a memory dump: a wall of garbage in which the candidate words
+   are hidden. The words are NOT styled differently — they are the same
+   colour as every other character on the screen, which is the entire point:
+   you find them by reading the dump, not by spotting a highlight. Hovering
+   one lights it white so you can aim at it.
+
+   Two previous attempts got this wrong in opposite directions. The first
+   painted whole words in hot phosphor over inert noise, which handed the
+   player the answer set. The second removed the words altogether and left a
+   pure character grid, which removed the only thing that made it playable.
    ========================================================================== */
 
-export interface Token {
-  /** Unique within the game. */
+export interface Cell {
+  /** Stable board address; used as the React key. */
   id: string
-  /** Character offset in the line's content. */
-  start: number
-  /** Exclusive end offset. */
-  end: number
-  text: string
-  kind: 'word' | 'dud'
-  /** Index into Game.candidates, for word tokens. */
-  wordIndex?: number
+  char: string
+  /** Candidate word this character belongs to, or null for noise. */
+  wordIndex: number | null
+  /** Horizontal column. */
+  slot: number
 }
+
+/** A run of adjacent cells that behave as one unit. */
+export type Group =
+  | { kind: 'noise'; key: string; cells: Cell[] }
+  | { kind: 'word'; key: string; wordIndex: number; cells: Cell[] }
+  | { kind: 'dud'; key: string; dudId: string; cells: Cell[] }
 
 export interface Line {
   row: number
   /** 0 = left column, 1 = right column. */
   column: 0 | 1
   address: string
-  content: string
-  /** Sorted by start. */
-  tokens: readonly Token[]
+  cells: Cell[]
+  groups: Group[]
 }
 
 export type Phase = 'playing' | 'accessing' | 'success' | 'locked'
-
-export interface Likeness {
-  word: string
-  value: number
-  length: number
-}
 
 export interface Game {
   difficulty: Difficulty
@@ -105,15 +112,25 @@ export interface Game {
   candidates: readonly string[]
   correctIndex: number
   lines: readonly Line[]
-  attemptsUsed: number
-  /** Guessed and known wrong: rendered as dots, not clickable. */
-  struck: ReadonlySet<number>
-  /** Wiped from the board by a dud: not clickable. */
-  erased: ReadonlySet<number>
+  /**
+   * The cell currently filling each guess slot, or null.
+   *
+   * It holds the Cell and not just its character on purpose. Two candidates
+   * can share a letter, and character comparison would light up cells the
+   * player never touched. Identity is the only comparison that behaves.
+   */
+  selection: readonly (Cell | null)[]
+  /** Slots confirmed correct by a previous attempt. They stay locked in. */
+  locked: ReadonlySet<number>
+  /**
+   * Slots that were just wrong. Kept in state rather than on a timer so the
+   * red marks stay up exactly as long as the player is looking at them, and
+   * are cleared by the next click.
+   */
+  rejected: ReadonlySet<number>
   usedDuds: ReadonlySet<string>
+  attemptsUsed: number
   log: readonly string[]
-  /** Most recent guess feedback, for the big readout. */
-  lastLikeness: Likeness | null
   /** When the lockout started; null while the terminal is open. */
   lockedAt: number | null
   phase: Phase
@@ -136,16 +153,10 @@ function shuffle<T>(list: readonly T[]): T[] {
   return out
 }
 
-function makeNoise(length: number, difficulty: Difficulty): string {
+/** The dump is symbols only. The candidate words supply every letter. */
+function randomNoiseChar(difficulty: Difficulty): string {
   const symbols = NOISE_BASE + difficulty.symbols
-  let out = ''
-  for (let i = 0; i < length; i++) {
-    out +=
-      Math.random() < difficulty.letterChance
-        ? LETTERS[randInt(0, LETTERS.length - 1)]
-        : symbols[randInt(0, symbols.length - 1)]
-  }
-  return out
+  return symbols[randInt(0, symbols.length - 1)]
 }
 
 function makeAddress(): string {
@@ -154,48 +165,24 @@ function makeAddress(): string {
   return `0x${hex} `
 }
 
-/** How many character positions match exactly — the game's core hint. */
-export function likeness(guess: string, correct: string): number {
-  let count = 0
-  for (let i = 0; i < guess.length; i++) {
-    if (guess[i] === correct[i]) count++
-  }
-  return count
-}
-
 /** Characters of text per column line, addresses and gap excluded. */
 export function contentWidthFor(cols: number): number {
-  return Math.max(
-    12,
-    Math.floor((cols - 2 * ADDRESS_WIDTH - COLUMN_GAP) / 2),
-  )
+  return Math.max(12, Math.floor((cols - 2 * ADDRESS_WIDTH - COLUMN_GAP) / 2))
 }
 
-/**
- * Picks a word length that both fits the difficulty band AND leaves room for
- * noise in the line. The old code clamped the *board* to a minimum width
- * instead, which let a 12-letter word land in a 14-character line and made
- * the whole board trivially readable.
- */
-function chooseWordLength(difficulty: Difficulty, buckets: WordBuckets, contentWidth: number): number {
-  const ceiling = Math.max(4, Math.floor(contentWidth * MAX_WORD_FILL))
+/** Longest candidate on the board, which is the guess length. */
+function chooseWordLength(
+  difficulty: Difficulty,
+  buckets: WordBuckets,
+  contentWidth: number,
+): number {
+  const ceiling = Math.max(4, Math.min(contentWidth - 2, difficulty.maxLen))
   const want = difficulty.candidates
 
-  // Prefer a length that can supply the full candidate list.
-  for (let len = Math.min(difficulty.maxLen, ceiling); len >= difficulty.minLen; len--) {
+  for (let len = ceiling; len >= difficulty.minLen; len--) {
     if ((buckets.get(len)?.length ?? 0) >= want) return len
   }
-  // Otherwise take the length with the biggest pool in range.
-  let best = Math.max(4, Math.min(difficulty.minLen, ceiling))
-  let bestCount = -1
-  for (let len = Math.max(4, Math.min(difficulty.minLen, ceiling)); len <= Math.min(difficulty.maxLen, ceiling); len++) {
-    const count = buckets.get(len)?.length ?? 0
-    if (count > bestCount) {
-      bestCount = count
-      best = len
-    }
-  }
-  return best
+  return Math.max(4, Math.min(difficulty.minLen, ceiling))
 }
 
 function buildCandidates(
@@ -208,7 +195,6 @@ function buildCandidates(
 
   let pool = [...(buckets.get(wordLen) ?? [])]
 
-  // Top up from the bundled fallbacks so the pool always reaches `want`.
   if (pool.length < want) {
     const extras = (FALLBACK_BY_LENGTH[wordLen] ?? []).filter(
       (w) => !pool.includes(w),
@@ -220,20 +206,18 @@ function buildCandidates(
     return { candidates: ['VAULT'], wordLen }
   }
 
-  // If we still can't reach the target, the pool is what it is; play on.
-  const candidates = shuffle(pool).slice(0, Math.max(1, Math.min(want, pool.length)))
+  const candidates = shuffle(pool).slice(
+    0,
+    Math.max(1, Math.min(want, pool.length)),
+  )
   return { candidates, wordLen }
 }
 
-interface Planned {
-  lineIndex: number
-  col: number
-  text: string
-  kind: 'word' | 'dud'
-  wordIndex?: number
-  slotId: string
-}
-
+/**
+ * Lay the dump out: noise everywhere, with each candidate word dropped in as
+ * a contiguous run at a random line and column, and the bracket pairs
+ * sprinkled between them. Nothing overlaps.
+ */
 function buildBoard(
   difficulty: Difficulty,
   candidates: readonly string[],
@@ -242,85 +226,134 @@ function buildBoard(
 ): Line[] {
   const totalLines = totalRows * 2
 
-  const planned: Planned[] = candidates.map((text, wordIndex) => ({
-    lineIndex: -1,
-    col: 0,
-    text,
-    kind: 'word',
-    wordIndex,
-    slotId: `w${wordIndex}`,
-  }))
+  const grid: (Cell | null)[][] = Array.from({ length: totalLines }, () =>
+    Array.from({ length: contentWidth }, () => null),
+  )
+
+  // A run of `width` cells starting at `start`; null if it would not fit.
+  const place = (
+    width: number,
+    make: (slot: number, offset: number) => Cell | null,
+  ): boolean => {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const lineIndex = randInt(0, totalLines - 1)
+      const start = randInt(0, contentWidth - width)
+      let free = true
+      for (let i = 0; i < width; i++) {
+        if (grid[lineIndex][start + i] !== null) free = false
+      }
+      if (!free) continue
+
+      for (let i = 0; i < width; i++) {
+        grid[lineIndex][start + i] = make(start + i, i)
+      }
+      return true
+    }
+    return false
+  }
+
+  candidates.forEach((word, wordIndex) => {
+    place(word.length, (slot, offset) => ({
+      id: `w${wordIndex}:${slot}`,
+      char: word[offset],
+      wordIndex,
+      slot,
+    }))
+  })
 
   for (let i = 0; i < DUD_COUNT; i++) {
     const brackets = pick(DUD_TYPES)
-    const filler = makeNoise(randInt(1, 3), { ...difficulty, letterChance: 0 })
-    planned.push({
-      lineIndex: -1,
-      col: 0,
-      text: `${brackets[0]}${filler}${brackets[1]}`,
-      kind: 'dud',
-      // Ids are minted here and reused verbatim by the renderer, so there is
-      // exactly one id scheme. The old code minted `d<lineIndex>` at build
-      // time and `d<col>-<row>:<start>:<end>` at parse time, and the
-      // used-dud lookup could therefore never match.
-      slotId: `d${i}`,
-    })
+    // The pair is placed as noise; the dudId rides on the group, not the cell.
+    place(2, (slot, offset) => ({
+      id: `d${i}:${slot}`,
+      char: brackets[offset],
+      wordIndex: null,
+      slot,
+    }))
   }
 
-  // One token per line. If the board is shorter than the token count, extra
-  // tokens are dropped rather than stacked.
-  const linePool = shuffle(
-    Array.from({ length: totalLines }, (_, i) => i),
-  ).slice(0, planned.length)
-
-  planned.forEach((token, index) => {
-    token.lineIndex = linePool[index]
-    const slack = contentWidth - token.text.length
-    token.col = slack > 0 ? randInt(0, slack) : 0
-  })
-
-  const byLine = new Map<number, Planned>()
-  for (const token of planned) {
-    if (token.lineIndex >= 0) byLine.set(token.lineIndex, token)
-  }
-
-  const lines: Line[] = []
-  for (let lineIndex = 0; lineIndex < totalLines; lineIndex++) {
-    const column: 0 | 1 = lineIndex < totalRows ? 0 : 1
-    const row = lineIndex % totalRows
-    const content = makeNoise(contentWidth, difficulty)
-
-    const token = byLine.get(lineIndex)
-    let tokens: Token[] = []
-
-    if (token) {
-      const placed =
-        content.slice(0, token.col) +
-        token.text +
-        content.slice(token.col + token.text.length)
-      tokens = [
-        {
-          id: token.slotId,
-          start: token.col,
-          end: token.col + token.text.length,
-          text: token.text,
-          kind: token.kind,
-          wordIndex: token.wordIndex,
-        },
-      ]
-      lines.push({
-        row,
-        column,
-        address: makeAddress(),
-        content: placed,
-        tokens,
-      })
-    } else {
-      lines.push({ row, column, address: makeAddress(), content, tokens })
+  // Fill the holes, then derive the groups the renderer walks.
+  const dudIdsByCell = new Map<string, string>()
+  for (let d = 0; d < DUD_COUNT; d++) {
+    for (const line of grid) {
+      for (const cell of line) {
+        if (cell && cell.id.startsWith(`d${d}:`)) {
+          dudIdsByCell.set(cell.id, `d${d}`)
+        }
+      }
     }
   }
 
+  const lines: Line[] = grid.map((row, lineIndex) => {
+    const cells: Cell[] = row.map((cell, slot) => {
+      if (cell) return cell
+      return {
+        id: `n${lineIndex}:${slot}`,
+        char: randomNoiseChar(difficulty),
+        wordIndex: null,
+        slot,
+      }
+    })
+
+    return {
+      row: lineIndex % totalRows,
+      column: (lineIndex < totalRows ? 0 : 1) as 0 | 1,
+      address: makeAddress(),
+      cells,
+      groups: buildGroups(cells, dudIdsByCell),
+    }
+  })
+
   return lines
+}
+
+/** Collapse adjacent cells into the runs the renderer draws. */
+function buildGroups(cells: readonly Cell[], dudIds: ReadonlyMap<string, string>): Group[] {
+  const groups: Group[] = []
+  let run: Cell[] = []
+  let kind: 'noise' | 'word' | 'dud' = 'noise'
+  let key = ''
+
+  const flush = () => {
+    if (run.length === 0) return
+    if (kind === 'word') {
+      groups.push({
+        kind: 'word',
+        key,
+        wordIndex: run[0].wordIndex as number,
+        cells: run,
+      })
+    } else if (kind === 'dud') {
+      groups.push({ kind: 'dud', key, dudId: key, cells: run })
+    } else {
+      groups.push({ kind: 'noise', key, cells: run })
+    }
+    run = []
+  }
+
+  for (const cell of cells) {
+    const dudId = dudIds.get(cell.id) ?? null
+    const nextKind: 'noise' | 'word' | 'dud' = dudId
+      ? 'dud'
+      : cell.wordIndex !== null
+        ? 'word'
+        : 'noise'
+    const nextKey =
+      nextKind === 'word'
+        ? `w${cell.wordIndex}`
+        : nextKind === 'dud'
+          ? (dudId as string)
+          : 'n'
+
+    if (nextKind !== kind || nextKey !== key) {
+      flush()
+      kind = nextKind
+      key = nextKey
+    }
+    run.push(cell)
+  }
+  flush()
+  return groups
 }
 
 export function createGame(
@@ -341,83 +374,178 @@ export function createGame(
     candidates,
     correctIndex: randInt(0, candidates.length - 1),
     lines: buildBoard(difficulty, candidates, contentWidth, rows),
-    attemptsUsed: 0,
-    struck: new Set(),
-    erased: new Set(),
+    selection: Array.from({ length: wordLen }, () => null),
+    locked: new Set(),
+    rejected: new Set(),
     usedDuds: new Set(),
-    log: ['>CONECTANDO CON EL NODO…', '>ESCRIBE UNA CONTRASEÑA'],
-    lastLikeness: null,
+    attemptsUsed: 0,
+    log: [
+      '>CONECTANDO CON EL NODO…',
+      '>LOCALIZA LA CONTRASEÑA EN EL VOLCADO',
+    ],
     lockedAt: null,
     phase: 'playing',
   }
 }
 
 function pushLog(game: Game, ...lines: string[]): string[] {
-  // Keep the console to a readable length.
   return [...game.log, ...lines].slice(-9)
 }
 
-/** Words that are known-wrong or erased can never be guessed again. */
-export function isWordLocked(game: Game, wordIndex: number): boolean {
-  return game.struck.has(wordIndex) || game.erased.has(wordIndex)
+/** How many guess slots are still open. */
+export function openSlots(game: Game): number {
+  let count = 0
+  for (let i = 0; i < game.wordLen; i++) {
+    if (!game.locked.has(i)) count++
+  }
+  return count
 }
 
 /**
- * Guess a candidate word.
- *
- * Wrong guesses cost an attempt and report positional matches, exactly like
- * FO3/NV. Guessing a word you already know is wrong is a no-op that returns
- * the same object, so a stray re-click can never burn a second attempt.
+ * Every slot filled by a fresh pick or a confirmed letter, and nothing still
+ * flagged wrong. The rejected check matters: right after a failed attempt the
+ * wrong characters stay in their slots so they can be shown in red, and until
+ * the player has replaced them the guess is not really a new guess.
  */
-export function guess(game: Game, wordIndex: number): Game {
+export function isComplete(game: Game): boolean {
+  if (game.rejected.size > 0) return false
+  return game.selection.every((cell, i) => cell !== null || game.locked.has(i))
+}
+
+/**
+ * Click a character. It lands in the first guess slot that still needs one, in
+ * click order — the FNV rule. A slot still flagged wrong from the last attempt
+ * is repaired first, so each new pick clears one red mark. Clicking a cell
+ * that is already in the guess removes it again, so a misclick is undoable.
+ */
+export function selectCell(game: Game, cell: Cell): Game {
   if (game.phase !== 'playing') return game
-  if (isWordLocked(game, wordIndex)) return game
 
-  const word = game.candidates[wordIndex]
-  if (!word) return game
+  const selection = [...game.selection]
 
-  if (wordIndex === game.correctIndex) {
-    return {
-      ...game,
-      phase: 'accessing',
-      log: pushLog(game, `>${word}`, '>COINCIDENCIA EXACTA', '>ACCEDIENDO AL SISTEMA…'),
+  const existing = selection.indexOf(cell)
+  if (existing >= 0) {
+    selection[existing] = null
+    const rejected = new Set(game.rejected)
+    rejected.delete(existing)
+    return { ...game, selection, rejected }
+  }
+
+  // A slot still marked wrong takes priority: that is the one the player is
+  // looking at.
+  let target = -1
+  for (const slot of game.rejected) {
+    if (slot >= 0 && slot < game.wordLen && !game.locked.has(slot)) {
+      target = slot
+      break
     }
   }
 
-  const correct = game.candidates[game.correctIndex]
-  const value = likeness(word, correct)
-  const attemptsUsed = game.attemptsUsed + 1
-  const locked = attemptsUsed >= MAX_ATTEMPTS
+  if (target < 0) {
+    for (let i = 0; i < game.wordLen; i++) {
+      if (game.locked.has(i)) continue
+      if (selection[i] !== null) continue
+      target = i
+      break
+    }
+  }
 
-  const log = pushLog(game, `>${word}`, '>ACCESO DENEGADO', `>${value}/${word.length} CORRECTAS`)
-  if (locked) {
+  if (target < 0) return game
+
+  selection[target] = cell
+  const rejected = new Set(game.rejected)
+  rejected.delete(target)
+  return { ...game, selection, rejected }
+}
+
+export type SubmitOutcome =
+  | { kind: 'success' }
+  | { kind: 'partial'; correct: number; total: number; wrong: number[] }
+  | null
+
+/**
+ * Score the guess, FNV rules: characters in the right position lock in and
+ * stay, the rest are flagged and shown in red while still occupying their slot
+ * so the player can see which ones failed. A confirmed letter is never
+ * cleared, so the known prefix accumulates across attempts.
+ */
+export function submit(game: Game): { game: Game; outcome: SubmitOutcome } {
+  if (game.phase !== 'playing') return { game, outcome: null }
+  if (!isComplete(game)) return { game, outcome: null }
+
+  const word = game.candidates[game.correctIndex] ?? ''
+  const next = [...game.selection]
+  const locked = new Set(game.locked)
+  const wrong: number[] = []
+  let correct = 0
+
+  for (let slot = 0; slot < game.wordLen; slot++) {
+    if (locked.has(slot)) continue
+    const chosen = next[slot]
+    if (chosen === null) continue
+
+    if (chosen.char === word[slot]) {
+      locked.add(slot)
+      correct++
+    } else {
+      // Left in place on purpose: it stays visible in red until the player
+      // picks over it.
+      wrong.push(slot)
+    }
+  }
+
+  const attemptsUsed = game.attemptsUsed + 1
+
+  if (locked.size === game.wordLen) {
+    return {
+      game: {
+        ...game,
+        selection: next,
+        locked,
+        attemptsUsed,
+        rejected: new Set(),
+        phase: 'accessing',
+        log: pushLog(game, '>COINCIDENCIA EXACTA', '>ACCEDIENDO AL SISTEMA…'),
+      },
+      outcome: { kind: 'success' },
+    }
+  }
+
+  const dead = attemptsUsed >= MAX_ATTEMPTS
+  const log = pushLog(
+    game,
+    `>${next.map((cell) => cell?.char ?? '_').join('')}`,
+    '>ACCESO DENEGADO',
+    `>${correct} CORRECTAS · ${wrong.length} INCORRECTAS`,
+  )
+  if (dead) {
     log.push('>INTENTOS RESTANTES: 0', `>TERMINAL BLOQUEADO ${LOCKOUT_SECONDS}s`)
   }
 
   return {
-    ...game,
-    attemptsUsed,
-    struck: new Set(game.struck).add(wordIndex),
-    lastLikeness: { word, value, length: word.length },
-    // Locked, not permanently dead: the countdown reopens the terminal.
-    phase: locked ? 'locked' : 'playing',
-    lockedAt: locked ? Date.now() : game.lockedAt,
-    log,
+    game: {
+      ...game,
+      selection: next,
+      locked,
+      attemptsUsed,
+      rejected: new Set(wrong),
+      phase: dead ? 'locked' : 'playing',
+      lockedAt: dead ? Date.now() : game.lockedAt,
+      log,
+    },
+    outcome: { kind: 'partial', correct, total: game.wordLen, wrong },
   }
 }
 
 export type DudOutcome =
-  | { kind: 'erased'; word: string }
-  | { kind: 'attempts'; count: number }
+  | { kind: 'revealed'; slot: number; char: string }
+  | { kind: 'cleared' }
   | null
 
 /**
- * Trigger a dud pair. FNV-accurate: it either wipes one still-unknown wrong
- * word off the board, or restores every attempt you have spent. It never
- * costs an attempt, and the pair is consumed so it can't be farmed.
- *
- * The previous version did this silently, so players never learned which of
- * the two outcomes they'd triggered. It now returns a description.
+ * Bracket pair. FNV-accurate: it either hands you a confirmed letter or wipes
+ * your selection. It never costs an attempt, and each pair is consumed so it
+ * cannot be farmed — that trade-off is the whole point of the mechanic.
  */
 export function triggerDud(
   game: Game,
@@ -427,78 +555,55 @@ export function triggerDud(
   if (game.usedDuds.has(dudId)) return { game, outcome: null }
 
   const usedDuds = new Set(game.usedDuds).add(dudId)
+  const word = game.candidates[game.correctIndex] ?? ''
 
-  // Prefer erasing a word you haven't already guessed — a struck word is
-  // known-bad information, so wiping it wastes the dud.
-  const erasable = game.candidates
-    .map((word, index) => ({ word, index }))
-    .filter(
-      ({ index }) =>
-        index !== game.correctIndex && !isWordLocked(game, index),
-    )
+  const open: number[] = []
+  for (let slot = 0; slot < game.wordLen; slot++) {
+    if (!game.locked.has(slot)) open.push(slot)
+  }
 
-  const wantsErase = Math.random() < 0.5
+  if (open.length > 0 && Math.random() < 0.5) {
+    const slot = pick(open)
 
-  if (wantsErase && erasable.length > 0) {
-    const victim = pick(erasable)
+    // Reveal the real cell on the board, not a synthesised character, so the
+    // player sees a letter light up in the dump as well as in the strip.
+    let cell: Cell | null = null
+    for (const line of game.lines) {
+      for (const group of line.groups) {
+        if (group.kind === 'word' && group.wordIndex === game.correctIndex) {
+          cell = group.cells[slot] ?? null
+        }
+      }
+    }
+
+    const selection = [...game.selection]
+    selection[slot] = cell
+
     return {
       game: {
         ...game,
         usedDuds,
-        erased: new Set(game.erased).add(victim.index),
-        log: pushLog(game, `>DESBLOQUEO: ${victim.word} BORRADO DE MEMORIA`),
+        selection,
+        locked: new Set(game.locked).add(slot),
+        rejected: new Set(),
+        log: pushLog(game, `>REVELACION: ${word[slot]} EN POSICION ${slot + 1}`),
       },
-      outcome: { kind: 'erased', word: victim.word },
+      outcome: { kind: 'revealed', slot, char: word[slot] },
     }
   }
 
-  const restored = MAX_ATTEMPTS - game.attemptsUsed
+  const cleared = game.selection.map((cell, i) =>
+    game.locked.has(i) ? cell : null,
+  )
+
   return {
     game: {
       ...game,
       usedDuds,
-      attemptsUsed: 0,
-      // A full reset must also lift the strikes, or the player is left with
-      // fresh attempts and a board of words they can no longer click.
-      struck: new Set<number>(),
-      log: pushLog(game, `>DESBLOQUEO: ${restored} INTENTOS RESTAURADOS`),
+      selection: cleared,
+      rejected: new Set(),
+      log: pushLog(game, '>BORRADO DE MEMORIA: SELECCION REINICIADA'),
     },
-    outcome: { kind: 'attempts', count: restored },
+    outcome: { kind: 'cleared' },
   }
-}
-
-/** Wipe a dud pair's characters back into noise. */
-export function scrubDud(lines: readonly Line[], dudId: string, difficulty: Difficulty): Line[] {
-  return lines.map((line) => {
-    const token = line.tokens.find((t) => t.id === dudId)
-    if (!token || token.kind !== 'dud') return line
-
-    const replacement = makeNoise(token.text.length, difficulty)
-    const content =
-      line.content.slice(0, token.start) +
-      replacement +
-      line.content.slice(token.end)
-
-    return {
-      ...line,
-      content,
-      tokens: line.tokens.filter((t) => t.id !== dudId),
-    }
-  })
-}
-
-/** Every guessable word still on the board, in reading order. */
-export function guessableWords(game: Game): { wordIndex: number; token: Token }[] {
-  const out: { wordIndex: number; token: Token }[] = []
-  for (const line of game.lines) {
-    for (const token of line.tokens) {
-      if (token.kind === 'word' && token.wordIndex !== undefined) {
-        out.push({ wordIndex: token.wordIndex, token })
-      }
-    }
-  }
-  return out.sort((a, b) => {
-    if (a.token.start !== b.token.start) return a.token.start - b.token.start
-    return (a.wordIndex ?? 0) - (b.wordIndex ?? 0)
-  })
 }

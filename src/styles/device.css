@@ -1,12 +1,21 @@
 /* ==========================================================================
    PIP-BOY 3000 — CASE
    --------------------------------------------------------------------------
-   Modelled on the in-game device: an olive-drab body, a thick black bezel
-   around an off-centre screen, a right-hand control panel with the module
-   labels silkscreened beside the RADS gauge and TUNE knob, and a bottom deck
-   with speaker slots, hazard stripe and power lamp.
+   The in-game device, re-lit: dark olive moulded plastic, lit from above-left
+   with a cool bounce from below-right, a bezel with real mouldings, and a
+   right-hand control panel whose module strip sits recessed inside the shell.
 
-   Pure CSS. No image assets.
+   Pure CSS, no image assets. Every colour comes from the --case-* tokens in
+   styles/variables.css, so the housing is repaintable from one place.
+
+   What was removed and why:
+     - Three large radial "rust blooms". Soft-edged ellipses at 40-50% alpha
+       read as JPEG compression artefacts, not as weathering.
+     - A `repeating-conic-gradient` speckle. Any conic pattern centred on the
+       element produces a radial moiré, and at 1.4% alpha it was visible as a
+       starburst across the whole body.
+     - The hazard stripe. A 10px barber pole in flat #d8b32a across the full
+       width was the single loudest thing on screen and carried no meaning.
    ========================================================================== */
 
 .device {
@@ -15,69 +24,60 @@
   height: 100%;
   min-height: 0;
   min-width: 0;
-  /* Full-bleed: the case is larger than the viewport and its edges are
-     cropped, so the device reads as "closer than the frame". */
   overflow: hidden;
-  background: #070805;
+  /* Reads as the void the device is sitting in. Not black: a hair of green
+     so the casing's olive does not look like it is floating on nothing. */
+  background: #050604;
 }
 
 .device__case {
   position: absolute;
-  inset: -1.5%;
+  /* inset:0, not the old -1.5%. The negative bleed cropped the shell's own
+     corners, which made it impossible to seat the fasteners in them. */
+  inset: 0;
   display: grid;
   grid-template-areas:
     'screen panel'
     'deck   panel';
-  /* Slim right strip for the silkscreened module labels plus the two dials,
-     and a shallow deck. Everything left over goes to the screen, which fills
-     whatever shape the window happens to be. */
-  grid-template-columns: minmax(0, 1fr) clamp(120px, 10.5vw, 172px);
+  /* A wider right strip than before: the module strip now lives in its own
+     recessed sub-panel and needs the room. */
+  grid-template-columns: minmax(0, 1fr) clamp(132px, 11.5vw, 190px);
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: clamp(6px, 0.9vw, 18px);
-  padding: clamp(6px, 1.1vw, 22px);
+  gap: clamp(7px, 1vw, 20px);
+  padding: clamp(7px, 1.2vw, 24px);
   min-height: 0;
   min-width: 0;
 
+  /* Body: one directional gradient plus the matte grain.
+     The grain was two 1px hatch layers crossed at 45 and -45 degrees on a 3px
+     period. That is the same square-grid-on-a-3px-period that moired in
+     crt.css, just at a lower alpha, and it beat into broad diagonal bands on
+     the body's visible gutters. One axis, on a 4px period: a single
+     directional hatch has no centre and no second axis to beat against. */
   background:
-    /* rust blooms */
-    radial-gradient(
-      ellipse 12% 9% at 78% 88%,
-      rgba(122, 74, 42, 0.5) 0%,
-      transparent 70%
-    ),
-    radial-gradient(
-      ellipse 9% 14% at 12% 20%,
-      rgba(122, 74, 42, 0.34) 0%,
-      transparent 70%
-    ),
-    radial-gradient(
-      ellipse 7% 20% at 52% 96%,
-      rgba(90, 60, 34, 0.4) 0%,
-      transparent 70%
-    ),
-    /* grime in the corners */
-    radial-gradient(ellipse 60% 50% at 50% 50%, transparent 40%, rgba(20, 18, 10, 0.5) 100%),
-    /* speckle */
-    repeating-conic-gradient(
-      from 17deg at 50% 50%,
-      rgba(255, 255, 255, 0.014) 0deg 1.4deg,
-      transparent 1.4deg 3deg
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.014) 0 1px,
+      transparent 1px 4px
     ),
     linear-gradient(
       168deg,
-      #857a55 0%,
-      #6b6244 22%,
-      #5b5339 52%,
-      #4a442e 78%,
-      #3a3524 100%
+      var(--case-high) 0%,
+      var(--case-mid) 24%,
+      var(--case-low) 58%,
+      #35321f 82%,
+      var(--case-edge) 100%
     );
 
+  /* The moulded outer edge: a lit hairline where the key light wraps the
+     rim, a dark one everywhere else, and a hard seam below that. */
   box-shadow:
-    0 0 0 1px #241f14,
-    0 0 0 2px rgba(0, 0, 0, 0.5);
+    inset 0 0 0 var(--seam) var(--case-rim-light),
+    inset 0 0 0 calc(var(--seam) * 2) var(--case-rim-dark),
+    0 0 calc(var(--u) * 1.2) rgba(0, 0, 0, 0.5);
 }
 
-/* Top-light: the body is lit from above-left, like the in-game render */
+/* ---- Key light: warm, from above-left, as in the in-game render ---------- */
 .device__case::before {
   content: '';
   position: absolute;
@@ -85,14 +85,17 @@
   z-index: 8;
   pointer-events: none;
   background: linear-gradient(
-    155deg,
-    rgba(255, 250, 220, 0.14) 0%,
-    rgba(255, 250, 220, 0.04) 16%,
-    transparent 44%
+    152deg,
+    var(--case-key) 0%,
+    rgba(255, 250, 220, 0.03) 18%,
+    transparent 46%
   );
 }
 
-/* Bottom shade + edge darkening */
+/* ---- Fill light + vignette ----------------------------------------------
+   The fill is the part the old casing never had. Without a second light the
+   lower right of the body went to the same dead flat tone as the shadow side
+   of anything on it, which is what made the whole thing read as a swatch. */
 .device__case::after {
   content: '';
   position: absolute;
@@ -100,13 +103,21 @@
   z-index: 8;
   pointer-events: none;
   background:
-    linear-gradient(0deg, rgba(0, 0, 0, 0.42) 0%, transparent 22%),
-    radial-gradient(ellipse 78% 74% at 50% 46%, transparent 52%, rgba(0, 0, 0, 0.6) 100%);
+    linear-gradient(328deg, var(--case-fill) 0%, transparent 42%),
+    /* Softened from 0.34 at 56%. This overlay sits at z-index 8, i.e. ON TOP
+       of the screen, so its vignette was a third one stacked on the CRT's and
+       the tube was reading as a dark hole in a dark case. */
+    radial-gradient(
+      ellipse 92% 88% at 50% 46%,
+      transparent 64%,
+      rgba(0, 0, 0, 0.2) 100%
+    );
 }
 
-/* Powered down: the whole body goes inert */
+/* Powered down: inert, but the new palette is dark enough that a hard
+   brightness cut just muddies it. Lift it and let the amber die instead. */
 .device__case[data-power='off'] {
-  filter: brightness(0.62) saturate(0.7);
+  filter: brightness(0.78) saturate(0.85);
 }
 
 /* ==========================================================================
@@ -120,9 +131,21 @@
   min-height: 0;
   min-width: 0;
   padding: 0;
+  /* Above the case's own lighting overlays (.device__case::before is a warm
+     152deg key light and ::after carries the vignette, both at z-index 8 with
+     inset: 0). They are lighting for the moulding, but inset:0 means they
+     also covered the screen: an 11% white wedge across the upper-left of the
+     tube and a vignette darkening the corners. The screen is a hole in the
+     body — it must not be lit by the body's key light. The bezel loses the
+     vignette, which costs nothing: it is already near-black. */
+  position: relative;
+  z-index: 9;
 }
 
-/* The thick black bezel is the single most recognisable part of the device */
+/* ---- The bezel ----------------------------------------------------------
+   The single most recognisable part of the device, and previously a flat
+   black rounded rectangle. It now has a moulding seam, a bevelled rim and
+   four fastener bosses, so it reads as an injected part rather than a div. */
 .device__bezel {
   position: relative;
   display: grid;
@@ -130,61 +153,135 @@
   height: 100%;
   min-height: 0;
   min-width: 0;
-  padding: clamp(5px, 0.8vw, 18px);
-  border-radius: clamp(10px, 1.6vw, 32px);
+  padding: clamp(6px, 0.9vw, 20px);
+  border-radius: var(--mould-radius);
   background:
     linear-gradient(
       160deg,
-      #2b2b26 0%,
-      #1a1a16 30%,
-      #101009 70%,
+      #2c2c26 0%,
+      #1c1c18 28%,
+      #111110 66%,
       #08080a 100%
     );
   box-shadow:
+    /* moulding seam */
+    inset 0 0 0 var(--seam) rgba(255, 250, 220, 0.07),
+    inset 0 0 0 calc(var(--seam) * 2) rgba(0, 0, 0, 0.6),
+    /* the lip the glass sits proud of */
+    inset 0 clamp(1px, 0.2vw, 3px) 0 rgba(255, 255, 255, 0.06),
     0 0 0 1px #000,
-    0 clamp(2px, 0.4vw, 6px) 0 rgba(255, 255, 255, 0.07) inset,
-    0 clamp(-2px, -0.4vw, -4px) 0 rgba(0, 0, 0, 0.6) inset,
-    0 clamp(6px, 1.2vw, 20px) clamp(12px, 2.4vw, 40px) rgba(0, 0, 0, 0.75);
+    0 clamp(3px, 0.5vw, 8px) clamp(8px, 1.5vw, 26px) rgba(0, 0, 0, 0.8);
 }
 
-/* Moulded notch on the top edge of the bezel */
+/* Four fastener bosses in the bezel's corners, as one pseudo-element with
+   four radial gradients: a dark well with a lit lower rim, so they read as
+   moulded recesses rather than as dots painted on.
+
+   The explicit `circle var(--boss-r)` size is load-bearing, not decoration.
+   A radial-gradient with no size defaults to farthest-corner, so the
+   percentages get measured against the distance to the far corner — roughly
+   2000px on a wide screen. Written without it, each "boss" was a 1900px
+   black disc with a light ring at 52% of its radius, and the four of them
+   crossing produced a symmetric Lambda across the middle of the tube plus a
+   0.62-alpha black wash over the entire screen. That was the source of both
+   the wedge and the "everything looks too dark": not a reflection, not
+   moire, and not a bad palette. */
+.device__bezel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  --boss-o: clamp(9px, 1.05vw, 22px);
+  --boss-r: clamp(4px, 0.5vw, 11px);
+  background:
+    radial-gradient(
+      circle var(--boss-r) at var(--boss-o) var(--boss-o),
+      rgba(0, 0, 0, 0.55) 0 52%,
+      rgba(255, 250, 220, 0.12) 74%,
+      transparent 92%
+    ),
+    radial-gradient(
+      circle var(--boss-r) at calc(100% - var(--boss-o)) var(--boss-o),
+      rgba(0, 0, 0, 0.55) 0 52%,
+      rgba(255, 250, 220, 0.12) 74%,
+      transparent 92%
+    ),
+    radial-gradient(
+      circle var(--boss-r) at var(--boss-o) calc(100% - var(--boss-o)),
+      rgba(0, 0, 0, 0.55) 0 52%,
+      rgba(255, 250, 220, 0.12) 74%,
+      transparent 92%
+    ),
+    radial-gradient(
+      circle var(--boss-r) at calc(100% - var(--boss-o)) calc(100% - var(--boss-o)),
+      rgba(0, 0, 0, 0.55) 0 52%,
+      rgba(255, 250, 220, 0.12) 74%,
+      transparent 92%
+    );
+}
+
+/* Moulding notch on the top edge of the bezel.
+   This is what looked like a stray dark rectangle floating above the screen:
+   the shell used to be cropped at -1.5%, which pushed the bezel's top edge up
+   to y≈8px and left the notch reading as a detached UI artifact. With the
+   shell at inset:0 it sits on the edge it is moulded into, and the lit lower
+   lip is what makes it read as a groove instead of a gap. */
 .device__bezel-notch {
   position: absolute;
-  top: clamp(2px, 0.4vw, 6px);
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 22%;
-  height: clamp(3px, 0.5vw, 8px);
-  border-radius: 0 0 6px 6px;
-  background: #0a0a0c;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+  z-index: 4;
+  width: 20%;
+  height: clamp(3px, 0.45vw, 7px);
+  border-radius: 0 0 5px 5px;
+  background: #08080a;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.9),
+    0 1px 0 var(--case-rim-light);
 }
 
 /* ROBCO moulded into the bezel */
 .device__brand {
   position: absolute;
-  bottom: clamp(3px, 0.5vw, 9px);
+  bottom: clamp(3px, 0.45vw, 8px);
   left: 50%;
   transform: translateX(-50%);
-  font-size: clamp(7px, 0.72vw, 13px);
+  z-index: 4;
+  font-size: clamp(7px, 0.7vw, 12px);
   letter-spacing: 0.4em;
-  color: rgba(190, 200, 175, 0.22);
+  color: var(--case-brand);
   text-transform: uppercase;
   pointer-events: none;
 }
 
+/* ---- The glass ----------------------------------------------------------
+   The reflection sits above the screen content rather than behind it: the
+   glass is in front of the phosphor, so anything painted under the content
+   is physically the wrong way round. */
 .device__glass {
   position: relative;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  border-radius: clamp(6px, 1.1vw, 20px);
+  border-radius: clamp(5px, 0.9vw, 16px);
   background: var(--screen-bg);
+  /* The lit lip the glass sits proud of, and the phosphor spilling out of the
+     tube onto the moulding. The spill matters: it separates the screen from
+     the body, and it is what stops the whole panel reading as one dark mass. */
   box-shadow:
     0 0 0 1px #000,
-    0 0 0 2px rgba(120, 140, 100, 0.1),
-    0 0 clamp(8px, 1.6vw, 26px) rgba(0, 0, 0, 0.95) inset;
+    0 0 0 2px rgba(255, 250, 220, 0.06),
+    0 0 clamp(6px, 1.2vw, 18px) rgba(158, 206, 106, 0.07),
+    0 0 clamp(8px, 1.4vw, 20px) rgba(0, 0, 0, 0.6) inset;
 }
+
+/* NOTE: there is deliberately no ::after sheen here.
+   .crt--fx::after in crt.css already paints a glass glare over the tube
+   (a soft radial at 32% 18%). A second one was briefly added here as a hard
+   linear-gradient and it read as a grey wedge across the whole screen —
+   duplicated glare, and the only reason the picture looked washed out. */
 
 /* ==========================================================================
    RIGHT CONTROL PANEL
@@ -195,26 +292,34 @@
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
   align-content: start;
-  gap: clamp(5px, 0.9vh, 14px);
-  padding: clamp(4px, 0.7vw, 12px) clamp(3px, 0.5vw, 8px);
+  gap: clamp(6px, 1vh, 16px);
+  padding: clamp(5px, 0.75vw, 13px);
   min-height: 0;
   min-width: 0;
-  border-radius: clamp(6px, 0.9vw, 16px);
-  background: linear-gradient(
-    170deg,
-    rgba(0, 0, 0, 0.2) 0%,
-    rgba(0, 0, 0, 0.34) 100%
-  );
+  border-radius: var(--mould-radius);
+  /* Recessed into the shell, so darker than the body rather than lighter. */
+  background: var(--case-recess);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.09) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.4) inset,
-    0 0 0 1px rgba(0, 0, 0, 0.35);
+    inset 0 var(--seam) 0 var(--case-rim-light),
+    inset 0 calc(var(--seam) * -1) 0 var(--case-rim-dark),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.3),
+    0 0 0 var(--seam) rgba(0, 0, 0, 0.32);
 }
 
-/* ---- Module labels: vertical silkscreen strip ----------------------------- */
+/* ---- Module strip: its own recessed sub-panel ---------------------------
+   Previously the six labels, the RADS gauge and the TUNE knob all floated in
+   the same flat box with nothing separating them. The strip is now a distinct
+   recessed well, and a divider tells you where the indicators end and the
+   controls begin. */
 .device__labels {
   display: grid;
-  gap: clamp(1px, 0.35vh, 5px);
+  gap: clamp(1px, 0.3vh, 4px);
+  padding: calc(clamp(5px, 0.75vw, 13px) * 0.5);
+  border-radius: calc(var(--mould-radius) * 0.55);
+  background: var(--case-recess-deep);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 1px 0 var(--case-rim-light);
 }
 
 .device__label {
@@ -222,27 +327,38 @@
   display: flex;
   align-items: center;
   gap: 0.45em;
-  padding: clamp(1px, 0.3vh, 4px) 0;
+  padding: clamp(2px, 0.4vh, 5px) clamp(2px, 0.35vw, 6px);
+  border-radius: 2px;
   font-family: inherit;
-  font-size: clamp(6px, 0.62vw, 11px);
+  font-size: clamp(7px, 0.66vw, 12px);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #d8d2b4;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+  color: var(--case-ink-dim);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.85);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   transition:
     color var(--snap-fast),
+    background var(--snap-fast),
     transform var(--snap-fast);
 }
 
 .device__label:hover {
-  color: #f2ecc8;
+  color: var(--case-ink);
+  background: rgba(255, 255, 255, 0.03);
 }
 
+/* The lit module: a well behind the label, not just a colour change, so it
+   reads as selected rather than as hovered. */
 .device__label[aria-pressed='true'] {
-  color: #ffe9a8;
+  color: var(--led-hot);
+  background: linear-gradient(
+    90deg,
+    rgba(242, 169, 59, 0.16) 0%,
+    rgba(242, 169, 59, 0.04) 100%
+  );
+  box-shadow: inset 2px 0 0 var(--led);
   transform: translateX(2px);
 }
 
@@ -252,23 +368,27 @@
   width: 0.5em;
   height: 0.5em;
   border-radius: 50%;
-  background: #2e2a1c;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7) inset;
+  background: var(--led-off);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.8);
   transition:
     background var(--snap-fast),
     box-shadow var(--snap-fast);
 }
 
 .device__label[aria-pressed='true'] .device__label-ink {
-  background: #ffc23a;
+  background: var(--led);
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.7) inset,
-    0 0 5px rgba(255, 194, 58, 0.9),
-    0 0 10px rgba(255, 160, 30, 0.6);
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 0 4px var(--led-glow);
 }
 
 /* ==========================================================================
    RADS GAUGE
+   --------------------------------------------------------------------------
+   The old face was a warm cream (#ded6b8 -> #8d8467), which against an olive
+   body read as a beige plastic toy dial. It is now a dark instrument face and
+   the scale is printed in the same phosphor as the screen, so the hardware
+   and the CRT speak one language.
    ========================================================================== */
 
 .rads {
@@ -276,42 +396,60 @@
   justify-items: center;
   gap: 0.2em;
   position: relative;
+  padding-top: calc(clamp(5px, 0.75vw, 13px) * 0.5);
+  border-top: var(--seam) solid rgba(0, 0, 0, 0.45);
 }
 
 .rads__ink,
 .tune__ink {
-  font-size: clamp(7px, 0.6vw, 11px);
+  font-size: clamp(7px, 0.62vw, 11px);
   letter-spacing: 0.3em;
-  color: #c9c2a2;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+  color: var(--case-ink-dim);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.85);
 }
 
 .rads__dial {
   position: relative;
-  width: clamp(44px, 4.4vw, 78px);
+  width: clamp(46px, 4.6vw, 82px);
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   cursor: pointer;
   display: grid;
   place-items: center;
+  /* Dark instrument face inside a lighter bezel ring. */
   background: radial-gradient(
     circle at 40% 34%,
-    #ded6b8 0%,
-    #bdb394 58%,
-    #8d8467 100%
+    #26261f 0%,
+    #14140f 56%,
+    #08080a 100%
   );
   box-shadow:
-    0 0 0 clamp(1.5px, 0.25vw, 4px) #3a3423,
-    0 0 0 1px #000,
+    0 0 0 clamp(1.5px, 0.25vw, 4px) #2b2a1d,
+    0 0 0 calc(clamp(1.5px, 0.25vw, 4px) + 1px) #000,
     0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+/* The glass dome over the dial: a small off-centre highlight */
+.rads__dial::after {
+  content: '';
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.02) 26%,
+    transparent 52%
+  );
 }
 
 .rads[data-disabled] .rads__dial {
   cursor: default;
-  filter: brightness(0.7) saturate(0.6);
+  filter: brightness(0.72) saturate(0.7);
 }
 
-/* Danger arc across the top of the face */
+/* Danger arc across the top of the face, muted */
 .rads__arc {
   position: absolute;
   inset: 8%;
@@ -319,7 +457,7 @@
   background: conic-gradient(
     from 198deg,
     transparent 0deg 108deg,
-    rgba(190, 40, 30, 0.85) 128deg 180deg,
+    rgba(192, 80, 60, 0.55) 128deg 180deg,
     transparent 200deg 360deg
   );
   -webkit-mask: radial-gradient(circle, transparent 0 78%, #000 79%);
@@ -340,29 +478,37 @@
   place-items: center;
   font-size: clamp(5px, 0.5vw, 9px);
   line-height: 1;
-  color: #2b2718;
+  /* The scale is lit like the screen it drives. */
+  color: var(--pipboy-color-dim);
+  text-shadow: 0 0 4px rgba(158, 206, 106, 0.35);
   transform-origin: 0 0;
   transform: rotate(calc(-72deg + var(--t) * 28.8deg))
-    translateY(calc(clamp(22px, 2.2vw, 39px) * -1));
+    translateY(calc(clamp(23px, 2.3vw, 41px) * -1));
   pointer-events: none;
 }
 
 .rads__tick[data-danger] {
-  color: #a32a1e;
+  color: #c0503c;
+  text-shadow: 0 0 4px rgba(192, 80, 60, 0.4);
   font-weight: bold;
 }
 
+/* A lit needle. The old one was near-black, invisible on the new dark face. */
 .rads__needle {
   position: absolute;
   left: 50%;
   bottom: 50%;
   width: 2px;
   height: 36%;
-  background: #1a1a16;
+  background: linear-gradient(
+    var(--pipboy-hot),
+    var(--pipboy-color) 60%,
+    rgba(158, 206, 106, 0.3)
+  );
   transform-origin: 50% 100%;
   transform: translateX(-50%) rotate(var(--angle, 0deg));
   border-radius: 1px;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 5px rgba(158, 206, 106, 0.5);
   pointer-events: none;
 }
 
@@ -374,17 +520,17 @@
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(circle at 36% 32%, #55524a, #1d1c18);
+  background: radial-gradient(circle at 36% 32%, #4a4840, #14130f);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
   pointer-events: none;
 }
 
 .rads__readout,
 .tune__readout {
-  font-size: clamp(7px, 0.58vw, 11px);
+  font-size: clamp(7px, 0.6vw, 11px);
   letter-spacing: 0.18em;
-  color: #ffc23a;
-  text-shadow: 0 0 6px rgba(255, 160, 30, 0.6);
+  color: var(--led);
+  text-shadow: 0 0 5px var(--led-glow);
   font-variant-numeric: tabular-nums;
 }
 
@@ -396,16 +542,28 @@
   display: grid;
   justify-items: center;
   gap: 0.2em;
+  position: relative;
+  padding-top: calc(clamp(5px, 0.75vw, 13px) * 0.5);
+  border-top: var(--seam) solid rgba(0, 0, 0, 0.45);
 }
 
 .tune__knob {
   position: relative;
-  width: clamp(40px, 4vw, 68px);
+  width: clamp(42px, 4.2vw, 72px);
   aspect-ratio: 1;
   display: grid;
   place-items: center;
   cursor: grab;
   touch-action: none;
+  /* The knob sits in a recessed well, so the printed scale around it has
+     something to be read against. */
+  border-radius: 50%;
+  background: radial-gradient(
+    circle closest-side at 50% 50%,
+    rgba(0, 0, 0, 0.32) 0 62%,
+    transparent 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
 .tune__knob:active {
@@ -414,7 +572,7 @@
 
 .tune[data-disabled] .tune__knob {
   cursor: default;
-  filter: brightness(0.65) saturate(0.5);
+  filter: brightness(0.7) saturate(0.6);
 }
 
 /* The printed frequency arc behind the knob */
@@ -428,19 +586,21 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 0;
-  height: 0;
-  background: rgba(30, 26, 16, 0.7);
+  width: 1px;
+  height: 4px;
+  background: rgba(207, 202, 173, 0.45);
   transform-origin: 0 0;
   /* 13 notches spread evenly across the 270° sweep */
   transform: rotate(calc(-135deg + var(--i) * 22.5deg))
-    translateY(calc(clamp(20px, 2vw, 34px) * -1));
+    translateY(calc(clamp(21px, 2.1vw, 36px) * -1));
 }
 
+/* These were rgba(30,26,16,.7) — dark ink on a dark body, so the frequency
+   scale was effectively invisible. Printed marks on a moulding are light. */
 .tune__notch[data-major] {
-  height: 3px;
+  height: 7px;
   width: 1.5px;
-  background: rgba(20, 17, 10, 0.92);
+  background: rgba(207, 202, 173, 0.75);
 }
 
 /* Star-shaped knob body */
@@ -449,7 +609,8 @@
   width: 66%;
   aspect-ratio: 1;
   border-radius: 50%;
-  /* Star profile via a conic gradient masked to a circle */
+  /* Star profile via a conic gradient masked to a circle. Locally scoped, so
+     it has no radial centre to moire against. */
   background:
     repeating-conic-gradient(
       from 0deg,
@@ -470,10 +631,10 @@
   inset: 22%;
   border-radius: 50%;
   background: radial-gradient(circle at 40% 34%, #2e2e36, #101014 70%);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07) inset;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 
-/* Grip indicator line */
+/* Grip indicator line, in phosphor so it reads on the black knob */
 .tune__grip {
   position: absolute;
   top: 6%;
@@ -482,8 +643,8 @@
   height: 30%;
   transform: translateX(-50%);
   border-radius: 2px;
-  background: #ffc23a;
-  box-shadow: 0 0 6px rgba(255, 160, 30, 0.7);
+  background: var(--pipboy-color);
+  box-shadow: 0 0 6px rgba(158, 206, 106, 0.5);
 }
 
 /* ==========================================================================
@@ -492,7 +653,7 @@
 
 .device__vents {
   display: grid;
-  gap: clamp(3px, 0.5vh, 7px);
+  gap: clamp(3px, 0.5vh, 6px);
   align-content: end;
   padding-bottom: 4px;
 }
@@ -500,30 +661,29 @@
 .device__vents span {
   height: 2px;
   background: rgba(0, 0, 0, 0.42);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* ==========================================================================
    BOTTOM DECK
+   --------------------------------------------------------------------------
+   Three columns now: grille, power, nameplate. The hazard stripe is gone.
    ========================================================================== */
 
 .device__deck {
   grid-area: deck;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
-  gap: clamp(6px, 1.1vw, 20px);
-  padding: clamp(3px, 0.6vw, 11px) clamp(6px, 1vw, 18px);
+  gap: clamp(8px, 1.3vw, 24px);
+  padding: clamp(4px, 0.65vw, 12px) clamp(8px, 1.1vw, 20px);
   min-height: 0;
-  border-radius: clamp(5px, 0.8vw, 14px);
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.26) 0%,
-    rgba(0, 0, 0, 0.42) 100%
-  );
+  border-radius: var(--mould-radius);
+  background: linear-gradient(180deg, var(--case-recess) 0%, var(--case-recess-deep) 100%);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.09) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.4) inset;
+    inset 0 var(--seam) 0 var(--case-rim-light),
+    inset 0 calc(var(--seam) * -1) 0 var(--case-rim-dark),
+    0 0 0 var(--seam) rgba(0, 0, 0, 0.3);
 }
 
 /* ---- Speaker grille: vertical slots side by side -------------------------
@@ -532,21 +692,24 @@
 .device__grille {
   display: grid;
   grid-auto-flow: column;
-  gap: clamp(2px, 0.35vw, 6px);
-  padding: clamp(3px, 0.45vw, 8px) clamp(4px, 0.6vw, 11px);
+  gap: clamp(3px, 0.4vw, 7px);
+  padding: clamp(4px, 0.5vw, 9px) clamp(5px, 0.65vw, 12px);
   border-radius: 3px;
-  background: rgba(0, 0, 0, 0.3);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3) inset;
+  /* A drilled well: dark through the holes, lit along the top lip. */
+  background: rgba(0, 0, 0, 0.42);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 1px 0 var(--case-rim-light);
 }
 
 .device__grille span {
   width: clamp(2px, 0.24vw, 4px);
-  height: clamp(14px, 1.9vw, 34px);
+  height: clamp(15px, 2vw, 36px);
   border-radius: 2px;
-  background: linear-gradient(180deg, #0c0b08, #1e1c14);
+  background: linear-gradient(180deg, #07060a, var(--case-deep));
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 3px rgba(0, 0, 0, 0.8) inset;
+    0 1px 0 rgba(255, 255, 255, 0.09),
+    0 0 3px rgba(0, 0, 0, 0.9) inset;
 }
 
 /* ---- Power lamp ---------------------------------------------------------- */
@@ -560,22 +723,23 @@
 }
 
 .device__power-lamp {
-  width: clamp(11px, 1.15vw, 24px);
+  width: clamp(11px, 1.1vw, 22px);
   aspect-ratio: 1;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 34%, #ffd98a, #ff9a1f 55%, #b35a05 100%);
+  background: radial-gradient(circle at 40% 34%, #ffdd9a, var(--led) 55%, #a8580a 100%);
+  /* The glow radius was 20px and bloomed onto the body. Halved. */
   box-shadow:
-    0 0 0 2px #2a2013,
+    0 0 0 2px #241c10,
     0 0 0 3px #000,
-    0 0 clamp(6px, 1.2vw, 20px) rgba(255, 150, 30, 0.9);
+    0 0 clamp(4px, 0.7vw, 11px) var(--led-glow);
   animation: power-flicker 3.4s steps(1, end) infinite;
   transition: filter var(--snap);
 }
 
 .device__case[data-power='off'] .device__power-lamp {
-  background: radial-gradient(circle at 40% 34%, #4a3a22, #2a1d0d 70%);
+  background: radial-gradient(circle at 40% 34%, #3f331f, #241b0d 70%);
   box-shadow:
-    0 0 0 2px #1a140c,
+    0 0 0 2px #17120a,
     0 0 0 3px #000;
   animation: none;
 }
@@ -587,48 +751,41 @@
     filter: brightness(1);
   }
   91% {
-    filter: brightness(0.55);
+    filter: brightness(0.6);
   }
   94% {
-    filter: brightness(1.1);
+    filter: brightness(1.08);
   }
 }
 
 .device__power-ink {
   font-size: clamp(6px, 0.52vw, 10px);
   letter-spacing: 0.26em;
-  color: #c9c2a2;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+  color: var(--case-ink-dim);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.85);
 }
 
-/* ---- Hazard stripe ------------------------------------------------------- */
-.device__hazard {
-  height: clamp(6px, 0.8vw, 15px);
-  border-radius: 2px;
-  background: repeating-linear-gradient(
-    -45deg,
-    #d8b32a 0 10px,
-    #17150e 10px 20px
-  );
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.5),
-    0 1px 0 rgba(255, 255, 255, 0.08) inset;
-  opacity: 0.85;
-}
-
-/* ---- Nameplate ----------------------------------------------------------- */
+/* ---- Nameplate ----------------------------------------------------------
+   Was bare text floating on the deck. It now sits on its own recessed pad,
+   the way an etched data plate would. */
 .device__plate {
   display: grid;
   gap: 1px;
   justify-items: end;
   text-align: right;
   min-width: 0;
+  padding: clamp(2px, 0.3vw, 6px) clamp(5px, 0.7vw, 12px);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.24);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 0 var(--case-rim-light);
 }
 
 .device__plate-name {
   font-size: clamp(8px, 0.7vw, 13px);
   letter-spacing: 0.34em;
-  color: rgba(226, 216, 176, 0.55);
+  color: var(--case-ink);
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -636,84 +793,99 @@
 .device__plate-sub {
   font-size: clamp(6px, 0.52vw, 10px);
   letter-spacing: 0.2em;
-  color: rgba(200, 190, 150, 0.3);
+  color: var(--case-ink-dim);
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 /* ==========================================================================
-   RIVETS
+   FASTENERS
+   --------------------------------------------------------------------------
+   These were pinned to loose viewport percentages (top 2.5%, left 1.2%,
+   left 26%) and floated mid-panel because the shell was cropped at -1.5%.
+   With the shell at inset:0 they can be seated in its actual corners, tied
+   to the same clamp() as the padding so they never drift.
    ========================================================================== */
 
 .device__rivet {
   position: absolute;
-  z-index: 9;
-  width: clamp(7px, 0.8vw, 15px);
+  /* Above .device__screen (9) so the corner fasteners are not painted over
+     by the bezel, which now sits above the case's lighting overlays. */
+  z-index: 10;
+  --rivet: calc(clamp(7px, 1.2vw, 24px) * 0.42);
+  width: var(--rivet);
   aspect-ratio: 1;
   border-radius: 50%;
   background:
-    linear-gradient(0deg, transparent 42%, rgba(0, 0, 0, 0.7) 42% 58%, transparent 58%),
-    linear-gradient(90deg, transparent 42%, rgba(0, 0, 0, 0.7) 42% 58%, transparent 58%),
-    radial-gradient(circle at 34% 30%, #9a9276, #5d5741 52%, #2b2718 100%);
+    linear-gradient(0deg, transparent 40%, rgba(0, 0, 0, 0.75) 40% 60%, transparent 60%),
+    linear-gradient(90deg, transparent 40%, rgba(0, 0, 0, 0.75) 40% 60%, transparent 60%),
+    radial-gradient(circle at 34% 30%, #8c8469, #55503c 52%, #262317 100%);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    0 0 0 1px rgba(0, 0, 0, 0.5);
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    inset 0 1px 1px rgba(255, 250, 220, 0.2);
   pointer-events: none;
 }
 
 .device__rivet--tl {
-  top: 2.5%;
-  left: 1.2%;
+  top: var(--rivet);
+  left: var(--rivet);
 }
 .device__rivet--tr {
-  top: 2.5%;
-  right: 1.2%;
+  top: var(--rivet);
+  right: var(--rivet);
 }
 .device__rivet--bl {
-  bottom: 2.5%;
-  left: 1.2%;
+  bottom: var(--rivet);
+  left: var(--rivet);
 }
 .device__rivet--br {
-  bottom: 2.5%;
-  right: 1.2%;
-}
-.device__rivet--bl2 {
-  bottom: 2.5%;
-  left: 26%;
-}
-.device__rivet--br2 {
-  bottom: 2.5%;
-  right: 26%;
+  bottom: var(--rivet);
+  right: var(--rivet);
 }
 
 /* ==========================================================================
    NARROW / SHORT — shed secondary detail, never the screen
+   The thresholds moved up: the housing is now wider, so the layout needs to
+   bail out earlier than it did at 860/620.
    ========================================================================== */
 
-@media (max-width: 860px) {
+@media (max-width: 1000px) {
   .device__case {
-    grid-template-columns: minmax(0, 1fr) clamp(104px, 13vw, 140px);
+    grid-template-columns: minmax(0, 1fr) clamp(112px, 14vw, 150px);
+    gap: clamp(5px, 0.9vw, 14px);
+    padding: clamp(5px, 0.9vw, 16px);
   }
 
-  .device__plate,
-  .device__hazard {
+  .device__plate-sub {
     display: none;
   }
+}
 
-  .device__deck {
-    grid-template-columns: auto auto minmax(0, 1fr);
+@media (max-width: 760px) {
+  .device__case {
+    grid-template-columns: minmax(0, 1fr) clamp(92px, 16vw, 120px);
+  }
+
+  .device__plate {
+    display: none;
   }
 }
 
 @media (max-width: 620px) {
   .device__case {
-    grid-template-columns: minmax(0, 1fr) clamp(84px, 15vw, 112px);
+    grid-template-columns: minmax(0, 1fr) clamp(76px, 17vw, 104px);
+    padding: clamp(4px, 0.8vw, 10px);
   }
 
   .device__grille,
   .device__vents,
   .rads__readout,
   .tune__readout {
+    display: none;
+  }
+
+  /* Below this the corner fasteners are inside the bezels, not the shell. */
+  .device__rivet {
     display: none;
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 export interface DeviceStat {
@@ -125,21 +125,20 @@ export function Device({
             <span className="device__power-ink">POWER</span>
           </button>
 
-          <div className="device__hazard" aria-hidden="true" />
-
           <div className="device__plate">
             <span className="device__plate-name">PIP-BOY 3000</span>
             <span className="device__plate-sub">VAULT-TEC · ROBOTRON</span>
           </div>
         </div>
 
-        {/* ---- Fasteners ------------------------------------------------- */}
+        {/* ---- Fasteners -------------------------------------------------
+            Four, seated in the shell's actual corners. There used to be six
+            pinned to loose viewport percentages; with the shell no longer
+            cropped at -1.5% the extra pair had nothing to sit in. */}
         <span className="device__rivet device__rivet--tl" aria-hidden="true" />
         <span className="device__rivet device__rivet--tr" aria-hidden="true" />
         <span className="device__rivet device__rivet--bl" aria-hidden="true" />
         <span className="device__rivet device__rivet--br" aria-hidden="true" />
-        <span className="device__rivet device__rivet--bl2" aria-hidden="true" />
-        <span className="device__rivet device__rivet--br2" aria-hidden="true" />
       </div>
     </div>
   )
@@ -234,66 +233,127 @@ interface TuneKnobProps {
   powered: boolean
 }
 
-function TuneKnob({ value, onChange, label, powered }: TuneKnobProps) {
-  const drag = useRef<{ x: number; y: number; base: number } | null>(null)
+/** The knob's travel, in degrees. Must match the rotation in the render. */
+const SWEEP = 270
 
-  // Drag horizontally to sweep the band: simple, predictable, and works with
-  // a mouse, a trackpad or a finger.
+/** Shortest signed distance from a to b on the circle, in degrees. */
+function angleDelta(from: number, to: number): number {
+  let delta = (to - from) % 360
+  if (delta > 180) delta -= 360
+  if (delta < -180) delta += 360
+  return delta
+}
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
+
+function TuneKnob({ value, onChange, label, powered }: TuneKnobProps) {
+  const knobRef = useRef<HTMLDivElement | null>(null)
+  const drag = useRef<{ angle: number; base: number } | null>(null)
+  /**
+   * What the knob shows while it is being turned. Null whenever it is idle,
+   * at which point the knob reads `value` — which comes from the *station*,
+   * not from the pointer.
+   *
+   * That distinction is the whole fix. The old handler called onChange on
+   * every pointermove, and onChange lands on the nearest station and calls
+   * tuneTo, which then blocks for TUNE_MS (750ms) while `tuning` is true.
+   * Every move in that window was dropped and the knob snapped back to the
+   * station, so dragging fought the user. Holding the position locally and
+   * committing once on release is also how a detented dial is supposed to
+   * behave: you turn it, it snaps to a detent when you let go.
+   *
+   * Mirrored into a ref because the commit happens in the pointerup handler:
+   * reading it out of a setState updater would run onChange during the
+   * render phase, and React replays updaters in StrictMode, so a single
+   * release would fire tuneTo twice.
+   */
+  const [dragValue, setDragValue] = useState<number | null>(null)
+  const heldValue = useRef<number | null>(null)
+
+  const hold = useCallback((next: number | null) => {
+    heldValue.current = next
+    setDragValue(next)
+  }, [])
+
+  /** Pointer angle around the knob's centre, -180..180. */
+  const pointerAngle = (event: React.PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return (
+      (Math.atan2(
+        event.clientY - (rect.top + rect.height / 2),
+        event.clientX - (rect.left + rect.width / 2),
+      ) *
+        180) /
+      Math.PI
+    )
+  }
+
   const onPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (!powered) return
-      drag.current = { x: event.clientX, y: event.clientY, base: value }
       event.currentTarget.setPointerCapture(event.pointerId)
+      drag.current = { angle: pointerAngle(event), base: value }
+      hold(value)
     },
-    [value, powered],
+    [value, powered, hold],
   )
 
   const onPointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       const start = drag.current
       if (!start) return
-      const delta = (event.clientX - start.x) / 220
-      onChange(Math.max(0, Math.min(1, start.base + delta)))
+      hold(clamp01(start.base + angleDelta(start.angle, pointerAngle(event)) / SWEEP))
     },
-    [onChange],
+    [hold],
   )
 
-  const endDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    drag.current = null
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-  }, [])
+  const endDrag = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const start = drag.current
+      drag.current = null
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
+      if (!start) return
+      const current = heldValue.current
+      hold(null)
+      // Commit once. A tap with no travel steps forward one eighth of the
+      // band, so the knob is usable without discovering the drag gesture.
+      onChange(current === null ? clamp01(start.base + 1 / 8) : current)
+    },
+    [onChange, hold],
+  )
 
-  // Wheel over the knob steps the band, like a real detented dial.
+  // Wheel over the knob steps the band, like a real detented dial. Bound to
+  // the ref rather than document.getElementById: the id was a global lookup
+  // from inside a component, and it re-ran the effect on every value change.
   useEffect(() => {
-    const node = document.getElementById('tune-knob')
-    if (!node) return
+    const node = knobRef.current
+    if (!node || !powered) return
     const onWheel = (event: WheelEvent) => {
-      if (!powered) return
       event.preventDefault()
-      const next = value + (event.deltaY > 0 ? -0.04 : 0.04)
-      onChange(Math.max(0, Math.min(1, next)))
+      onChange(clamp01(value + (event.deltaY > 0 ? -0.04 : 0.04)))
     }
     node.addEventListener('wheel', onWheel, { passive: false })
     return () => node.removeEventListener('wheel', onWheel)
   }, [value, onChange, powered])
 
-  const angle = -135 + value * 270
+  const shown = dragValue ?? value
+  const angle = -SWEEP / 2 + shown * SWEEP
 
   return (
     <div className="tune" data-disabled={!powered || undefined}>
       <span className="tune__ink">TUNE</span>
 
       <div
-        id="tune-knob"
+        ref={knobRef}
         className="tune__knob"
         role="slider"
         tabIndex={0}
         aria-label="Sintonizar radio"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(value * 100)}
+        aria-valuenow={Math.round(shown * 100)}
         aria-valuetext={label}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -303,10 +363,10 @@ function TuneKnob({ value, onChange, label, powered }: TuneKnobProps) {
           const step = event.shiftKey ? 0.02 : 0.08
           if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
             event.preventDefault()
-            onChange(Math.min(1, value + step))
+            onChange(clamp01(value + step))
           } else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
             event.preventDefault()
-            onChange(Math.max(0, value - step))
+            onChange(clamp01(value - step))
           }
         }}
       >

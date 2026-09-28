@@ -38,7 +38,8 @@
 /* The round's own grid: head / attempts bar / memory / console */
 .term__inner {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* head / attempts bar / selection strip / memory / console */
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
@@ -111,6 +112,73 @@
   }
 }
 
+/* ---- The selection strip -------------------------------------------------
+   FNV shows the characters you have picked here, one slot per password
+   position, with the confirmed ones lit. It is the only place the player can
+   read their own guess back, so it gets its own row above the board. */
+.term__slots {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.4);
+  padding: calc(var(--u) * 0.35) var(--pad);
+  border-bottom: 1px solid var(--pipboy-color-deep);
+}
+
+.term__slots-caret {
+  color: var(--pipboy-hot);
+  animation: pip-blink 1.06s steps(1, end) infinite;
+  margin-right: calc(var(--u) * 0.2);
+}
+
+.term__slot {
+  display: grid;
+  place-items: center;
+  width: calc(var(--u) * 1.1);
+  height: calc(var(--u) * 1.4);
+  font-size: var(--fs-md);
+  line-height: 1;
+  letter-spacing: 0;
+  border: 1px solid var(--pipboy-color-faint);
+  background: rgba(0, 0, 0, 0.35);
+  transition:
+    color var(--snap-fast),
+    background var(--snap-fast),
+    border-color var(--snap-fast);
+}
+
+.term__slot[data-state='empty'] {
+  color: var(--pipboy-color-deep);
+}
+
+/* A fresh pick: lit but not yet confirmed. */
+.term__slot[data-state='picked'] {
+  color: var(--pipboy-hot);
+  border-color: var(--pipboy-hot);
+  background: rgba(216, 255, 176, 0.12);
+  text-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
+}
+
+/* Confirmed by a previous attempt: solid, and it stays. */
+.term__slot[data-state='locked'] {
+  color: var(--screen-bg);
+  background: var(--pipboy-color);
+  border-color: var(--pipboy-color);
+  text-shadow: none;
+  box-shadow: 0 0 calc(var(--u) * 0.5) var(--pipboy-color-glow);
+}
+
+.term__submit {
+  margin-left: auto;
+  padding: calc(var(--u) * 0.2) var(--gap);
+  font-size: var(--fs-2xs);
+}
+
+.term__submit:disabled {
+  color: var(--pipboy-color-deep);
+  border-color: var(--pipboy-color-deep);
+  cursor: not-allowed;
+}
+
 /* ==========================================================================
    MEMORY BOARD
    ========================================================================== */
@@ -180,62 +248,139 @@
   padding: var(--pad);
 }
 
-/* ---- Tokens --------------------------------------------------------------
-   The board is mostly noise, so the tokens have to be the only thing that
-   looks clickable. Struck/erased words keep their slot but go inert. */
-.term__token {
+/* ---- Cells ---------------------------------------------------------------
+   One button per character. Every character — noise, bracket, candidate
+   letter — is the SAME colour, because that is what makes the words a search
+   instead of a multiple-choice question. Two previous versions got this
+   wrong in opposite directions: one painted the words in hot phosphor over
+   inert noise (which handed over the answer set), the next removed the words
+   from the board entirely.
+
+   The only thing that distinguishes a word is what happens when you point at
+   it. */
+.term__word,
+.term__noise,
+.term__dud {
+  display: inline;
+}
+
+.term__cell {
   font: inherit;
   letter-spacing: inherit;
   padding: 0;
   white-space: pre;
+  color: var(--pipboy-color-dim);
+  background: none;
+  border: none;
+  cursor: pointer;
   transition:
     color var(--snap-fast),
     background var(--snap-fast);
 }
 
-.term__token--word {
-  color: var(--pipboy-hot);
-  text-shadow: 0 0 calc(var(--u) * 0.35) var(--pipboy-color-glow);
-  background: var(--pipboy-color-deep);
-  cursor: pointer;
+/* ---- Hover ---------------------------------------------------------------
+   Two different things, and they have to look different or the grouping is
+   pointless:
+     - a single character  -> one boxed, blazing white cell
+     - a whole word        -> the entire run lights as a band, so you can see
+                              the word's extent before committing to it
+   The word rule outranks the single-character one on specificity, so the
+   character under the pointer inside a word still gets its own box.        */
+
+/* A single character, under the pointer, whatever it is. Deliberately loud:
+   on a wall of 60-odd symbols this is the only feedback you get. */
+.term__cell:hover:not(:disabled) {
+  color: #ffffff;
+  text-shadow:
+    0 0 calc(var(--u) * 0.5) rgba(255, 255, 255, 0.95),
+    0 0 calc(var(--u) * 1.1) rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow:
+    inset 0 0 0 1px #ffffff,
+    0 0 calc(var(--u) * 0.6) rgba(255, 255, 255, 0.45);
 }
 
-.term__token--word:hover:not(:disabled),
-.term__token--word:focus-visible {
+/* The whole word. Lighting every cell in the run is the only affordance that
+   tells you "this is a word, click any of it". */
+.term__word:hover .term__cell,
+.term__word:focus-within .term__cell {
+  color: #ffffff;
+  text-shadow: 0 0 calc(var(--u) * 0.45) rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: none;
+}
+
+/* The character actually under the pointer keeps its box, so within a lit
+   word you can still see which letter you are about to take. */
+.term__word:hover .term__cell:hover,
+.term__word:focus-within .term__cell:focus-visible {
+  background: rgba(255, 255, 255, 0.34);
+  box-shadow: inset 0 0 0 1px #ffffff;
+}
+
+/* Bracket pairs: the dud. Same colour as the noise around it, so the only
+   tell is the two-character pattern — but the pair lights as a unit. */
+.term__dud:hover .term__cell,
+.term__dud:focus-within .term__cell {
+  color: #ffffff;
+  text-shadow: 0 0 calc(var(--u) * 0.45) rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: none;
+}
+
+.term__dud[data-used] .term__cell {
+  color: var(--pipboy-color-deep);
+  cursor: default;
+}
+
+/* Currently in the guess. */
+.term__cell[data-selected] {
+  color: var(--pipboy-hot);
+  text-shadow: 0 0 calc(var(--u) * 0.35) var(--pipboy-color-glow);
+  box-shadow: inset 0 0 0 1px var(--pipboy-color-faint);
+}
+
+/* Confirmed in the right position. Solid, the brightest thing on the board. */
+.term__cell[data-locked] {
   color: var(--screen-bg);
   background: var(--pipboy-color);
   text-shadow: none;
-  outline: none;
+  font-weight: bold;
 }
 
-/* Known-wrong or erased: keeps the slot so the board geometry doesn't jump,
-   but reads as dead. */
-.term__token--word[data-locked] {
-  color: var(--pipboy-color-deep);
-  text-shadow: none;
-  background: none;
+/* Wrong in that position: FNV turns these red and keeps them up until the
+   player picks over the top. */
+.term__cell[data-rejected] {
+  color: #e05a4a;
+  text-shadow: 0 0 calc(var(--u) * 0.35) rgba(224, 90, 74, 0.6);
+  animation: term-reject 900ms steps(1, end) 1;
+}
+
+@keyframes term-reject {
+  0% {
+    color: #ff8a72;
+  }
+  60% {
+    color: #e05a4a;
+  }
+}
+
+.term__cell:disabled {
   cursor: default;
-  text-decoration: line-through;
-  text-decoration-color: var(--pipboy-color-faint);
 }
 
-.term__token--dud {
-  color: var(--pipboy-color);
-  background: var(--pipboy-color-faint);
-  cursor: pointer;
+.term__cell:focus-visible {
+  outline: 1px solid var(--pipboy-hot);
+  outline-offset: -1px;
 }
 
-.term__token--dud:hover:not(:disabled),
-.term__token--dud:focus-visible {
-  color: var(--screen-bg);
-  background: var(--pipboy-hot);
-  outline: none;
-}
-
-.term__token--dud[data-used] {
-  color: var(--pipboy-color-deep);
-  background: none;
-  cursor: default;
+/* ---- Attempts bar progress ---------------------------------------------- */
+.term__progress {
+  justify-self: end;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track);
+  color: var(--pipboy-color-faint);
+  white-space: nowrap;
 }
 
 /* ==========================================================================
@@ -261,6 +406,10 @@
   font-size: var(--fs-2xs);
   line-height: 1.5;
   letter-spacing: var(--track-tight);
+  /* The board sets user-select:none so dragging across 900 buttons does not
+     smear a selection over half the screen; the console is text, so let it be
+     copied like text. */
+  user-select: text;
 }
 
 .term__log-line {
@@ -343,6 +492,7 @@
   display: grid;
   gap: 1px;
   text-align: left;
+  user-select: text;
 }
 
 .term__payload-line {

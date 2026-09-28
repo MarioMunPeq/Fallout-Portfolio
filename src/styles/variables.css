@@ -11,27 +11,74 @@
      --pipboy-color is the only colour any component should reference.    */
   --pipboy-color: #9ece6a;
   --pipboy-hot: #d8ffb0; /* brightest tier: cursor, active tab, HP full */
-  --pipboy-color-glow: rgba(158, 206, 106, 0.5);
-  --pipboy-color-dim: rgba(158, 206, 106, 0.62);
-  --pipboy-color-subtle: rgba(158, 206, 106, 0.4);
-  --pipboy-color-faint: rgba(158, 206, 106, 0.22);
-  --pipboy-color-deep: rgba(158, 206, 106, 0.08);
+  --pipboy-color-glow: rgba(158, 206, 106, 0.58);
+  /* The alpha ramp used to bottom out at 0.22 for "faint" and 0.08 for "deep",
+     which on a near-black tube made most body copy read as a smudge. Lifted
+     across the board: the tiers are still ordered, just not unreadable. */
+  --pipboy-color-dim: rgba(158, 206, 106, 0.8);
+  --pipboy-color-subtle: rgba(158, 206, 106, 0.58);
+  --pipboy-color-faint: rgba(158, 206, 106, 0.34);
+  --pipboy-color-deep: rgba(158, 206, 106, 0.13);
 
   /* Panel fills, derived from the phosphor so they retint with it */
   --panel-fill: rgba(158, 206, 106, 0.03);
   --panel-fill-active: rgba(158, 206, 106, 0.09);
   --panel-border: rgba(158, 206, 106, 0.26);
 
-  /* Screen + page */
-  --screen-bg: #070b05;
+  /* Screen + page.
+     --screen-bg was #070b05, so close to black that the dimmer text tiers
+     disappeared into it. Lifted to a dark green that still reads as a dead
+     tube but gives the content somewhere to sit. */
+  --screen-bg: #0d1410;
   --page-bg: #0c0f0b;
 
-  /* ---- Physical housing (rendered outside the CRT) -------------------- */
-  --case-dark: #171a15;
-  --case-mid: #3a3f36;
-  --case-light: #5a6154;
-  --case-edge: #0a0c09;
-  --case-rust: #4a3a26; /* weathering stain, used sparingly for flavour */
+  /* ---- Physical housing (rendered outside the CRT) ----------------------
+     Dark olive, not the beige the first pass used: the old body was
+     #857a55 -> #3a3524, which read as dirty sand once the CRT bloom was
+     added on top. These five steps are the whole body, lit from above-left
+     and filled from below-right. */
+  --case-high: #7d7853; /* the lit face, top-left */
+  --case-mid: #66633f; /* the general tone */
+  --case-low: #4c4831; /* falling away from the key light */
+  --case-edge: #2d2a1b; /* the moulded seams and panel joints */
+  --case-deep: #191811; /* recesses, screw wells, the inside of the grille */
+
+  /* Cool bounce filling the shadow side. Without it the case reads as a flat
+     swatch: the key light alone leaves nothing in the lower right. */
+  --case-fill: rgba(120, 150, 180, 0.06);
+
+  /* The warm key. Kept as a token so the light can be dimmed globally. */
+  --case-key: rgba(255, 250, 220, 0.11);
+
+  /* Recessed sub-panels: the module strip and the bottom deck sit *inside*
+     the shell, so they are darker than the body rather than lighter. */
+  --case-recess: rgba(0, 0, 0, 0.28);
+  --case-recess-deep: rgba(0, 0, 0, 0.45);
+
+  /* Silkscreen ink on the body, and the moulded-in brand on the bezel. */
+  --case-ink: #cfcaad;
+  --case-ink-dim: rgba(207, 202, 173, 0.5);
+  --case-brand: rgba(196, 205, 180, 0.2);
+
+  /* Physical plastic. The moulding has a rim: a hairline of key light on the
+     edges the light reaches, and a hairline of shadow on the rest. */
+  --case-rim-light: rgba(255, 250, 220, 0.16);
+  --case-rim-dark: rgba(0, 0, 0, 0.55);
+
+  /* ---- Am indicators (module LEDs, RADS readout, POWER lamp) ------------
+     Kept amber because it is the only warm thing in the device, but pulled
+     down from the old #ffc23a: at full strength the glow bloomed over the
+     body and read as a fire LED. */
+  --led: #f2a93b;
+  --led-hot: #ffca62;
+  --led-glow: rgba(242, 169, 59, 0.55);
+  --led-off: #262218;
+
+  /* ---- The moulding detail --------------------------------------------
+     The one knob the whole case is dimensioned against, shared with the
+     chamfer so every moulded corner on the device lines up. */
+  --mould-radius: clamp(6px, 0.9vw, 18px);
+  --seam: 1px;
 
   /* ---- Typography -----------------------------------------------------
      --u is the base unit. Every size is a multiple of it, so the whole UI

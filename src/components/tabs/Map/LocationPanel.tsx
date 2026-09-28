@@ -1,16 +1,23 @@
 import type { MapCategory, MapLocation } from '../../../data/mapLocations'
-import studyIcon from '../../../assets/icons/map/graduate-cap.svg?raw'
-import workIcon from '../../../assets/icons/map/briefcase.svg?raw'
+import { CATEGORY_ICON_PATHS } from '../../../data/mapLocations'
 import './LocationPanel.css'
-
-const CATEGORY_ICONS: Record<MapCategory, string> = {
-  estudio: studyIcon,
-  trabajo: workIcon,
-}
 
 const CATEGORY_LABEL: Record<MapCategory, string> = {
   estudio: 'EDUCACIÓN',
   trabajo: 'EMPLEO',
+}
+
+/**
+ * Rendered as a real SVG element. See CATEGORY_ICON_PATHS for why the
+ * ?raw import had to go: it was a string, and a string in JSX is a text node,
+ * so the panel was printing the markup literally.
+ */
+function CategoryIcon({ categoria }: { categoria: MapCategory }) {
+  return (
+    <svg viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+      <path d={CATEGORY_ICON_PATHS[categoria]} />
+    </svg>
+  )
 }
 
 interface LocationPanelProps {
@@ -41,7 +48,7 @@ export function LocationPanel({ location, onClose, onFocus }: LocationPanelProps
 
       <div className="locpanel__title">
         <span className="locpanel__icon" aria-hidden="true">
-          {CATEGORY_ICONS[location.categoria]}
+          <CategoryIcon categoria={location.categoria} />
         </span>
         <h2 className="locpanel__name">{location.nombre}</h2>
       </div>

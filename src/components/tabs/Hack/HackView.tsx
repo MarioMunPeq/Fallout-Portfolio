@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent, MutableRefObject, RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent, RefObject } from 'react'
 import { TabNav } from '../../TabNav/TabNav'
 import submoduleChangeSfx from '../../../assets/sfx/submodule_change.ogg'
 import clickSfx from '../../../assets/sfx/mechanical-click.wav'
@@ -15,13 +15,13 @@ import {
   LOCKOUT_SECONDS,
   MAX_ATTEMPTS,
   createGame,
-  guess,
-  guessableWords,
-  isWordLocked,
-  scrubDud,
+  isComplete,
+  openSlots,
+  selectCell,
+  submit,
   triggerDud,
 } from './hackGame'
-import type { Game, Line, Token } from './hackGame'
+import type { Cell, Game, Group, Line } from './hackGame'
 import type { DifficultyId } from './hackTypes'
 import type { WordBuckets } from './words'
 import { loadDictionary } from './words'
@@ -49,7 +49,7 @@ const VAULT_PAYLOAD = [
   '  MINIJUEGO DE HACKEO ES JUGABLE.',
   '',
   '  MARIO MUÑOZ PEQUEÑO · VALLADOLID, ES',
-  '  DESARROLLADOR DE SOFTWARE @ DIPUTACIÓN',
+  '  PEGA DEVELOPER @ COGNIZANT',
   '',
   '  20 REPOSITORIOS · 5 PORTEFOLIOS · 1 BÚSQUEDA',
   '  DE UN DISPOSITIVO QUE NO EXISTE.',
@@ -240,10 +240,8 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
   const [game, setGame] = useState<Game>(() =>
     createGame(difficultyId, buckets, cols, rows),
   )
-  const [cursor, setCursor] = useState(0)
   /** Ticking clock, only used to derive the lockout countdown. */
   const [now, setNow] = useState(() => Date.now())
-  const wordButtons = useRef<(HTMLButtonElement | null)[]>([])
 
   /* ---- Success delay ------------------------------------------------------ */
   useEffect(() => {
@@ -284,8 +282,12 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
               ...current,
               phase: 'playing',
               attemptsUsed: 0,
-              struck: new Set<number>(),
-              lastLikeness: null,
+              // A full reset must also drop the confirmed letters, or the
+              // player gets fresh attempts against a board that is already
+              // half-solved and the password is no longer a secret.
+              locked: new Set<number>(),
+              selection: Array.from({ length: current.wordLen }, () => null),
+              rejected: new Set<number>(),
               lockedAt: null,
               log: [
                 '>DESBLOQUEO AUTOMATICO',
@@ -300,97 +302,82 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
     return () => window.clearInterval(id)
   }, [game.phase, game.lockedAt])
 
-  /* ---- Derived ------------------------------------------------------------ */
-  const guessable = useMemo(() => guessableWords(game), [game])
-  const guessableIndexes = useMemo(
-    () => new Set(guessable.map((g) => g.wordIndex)),
-    [guessable],
-  )
-  const activeIndex = guessable.length
-    ? Math.min(cursor, guessable.length - 1)
-    : -1
-
-  useEffect(() => {
-    if (activeIndex >= 0) wordButtons.current[activeIndex]?.focus()
-  }, [activeIndex])
-
   /* ---- Actions ------------------------------------------------------------ */
   const restart = useCallback(() => {
     playSfx(restartSfx)
     setGame(createGame(difficultyId, buckets, cols, rows))
-    setCursor(0)
   }, [difficultyId, buckets, cols, rows])
 
-  const handleGuess = useCallback((wordIndex: number) => {
+  const handleSelect = useCallback((cell: Cell, dudId: string | null) => {
     setGame((current) => {
       if (current.phase !== 'playing') return current
-      if (isWordLocked(current, wordIndex)) return current
-      const next = guess(current, wordIndex)
-      if (next === current) return current
 
-      if (next.phase === 'accessing') playSfx(okSfx)
+      if (dudId !== null) {
+        const { game: next, outcome } = triggerDud(current, dudId)
+        if (!outcome) return current
+        playSfx(dudSfx)
+        return next
+      }
+
+      const next = selectCell(current, cell)
+      if (next === current) return current
+      playSfx(clickSfx)
+      return next
+    })
+  }, [])
+
+  const handleSubmit = useCallback(() => {
+    setGame((current) => {
+      if (current.phase !== 'playing') return current
+      const { game: next, outcome } = submit(current)
+      if (!outcome) return current
+
+      if (outcome.kind === 'success') playSfx(okSfx)
       else if (next.phase === 'locked') playSfx(blockedSfx)
       else playSfx(clickSfx)
       return next
     })
   }, [])
 
-  const handleDud = useCallback((dudId: string) => {
-    setGame((current) => {
-      if (current.phase !== 'playing') return current
-      const { game: next, outcome } = triggerDud(current, dudId)
-      if (!outcome) return current
-
-      playSfx(dudSfx)
-      if (outcome.kind === 'erased') {
-        return { ...next, lines: scrubDud(next.lines, dudId, next.difficulty) }
-      }
-      return next
-    })
-  }, [])
-
   /* ---- Keyboard ------------------------------------------------------------
-     The old view drew a blinking ">" prompt with no input handling at all and
-     `user-select: none`, so the whole game was mouse-only. */
+     Tab moves through the grid natively, so the terminal only needs the
+     two verbs the board cannot express: submit and restart. */
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (game.phase !== 'playing' || guessable.length === 0) return
+    if (game.phase !== 'playing') return
 
     switch (event.key) {
-      case 'ArrowRight':
-      case 'ArrowDown':
-        event.preventDefault()
-        setCursor((c) => (c + 1) % guessable.length)
-        playSfx(clickSfx)
-        break
-      case 'ArrowLeft':
-      case 'ArrowUp':
-        event.preventDefault()
-        setCursor((c) => (c - 1 + guessable.length) % guessable.length)
-        playSfx(clickSfx)
-        break
-      case 'Home':
-        event.preventDefault()
-        setCursor(0)
-        break
-      case 'End':
-        event.preventDefault()
-        setCursor(guessable.length - 1)
-        break
       case 'Enter':
       case ' ':
         event.preventDefault()
-        if (activeIndex >= 0) handleGuess(guessable[activeIndex].wordIndex)
+        handleSubmit()
         break
       case 'n':
       case 'N':
         event.preventDefault()
         restart()
         break
+      case 'Backspace': {
+        // Clear the right-most slot the player can still change.
+        event.preventDefault()
+        setGame((current) => {
+          if (current.phase !== 'playing') return current
+          const next = [...current.selection]
+          for (let i = current.wordLen - 1; i >= 0; i--) {
+            if (!current.locked.has(i) && next[i] !== null) {
+              next[i] = null
+              break
+            }
+          }
+          return { ...current, selection: next, rejected: new Set() }
+        })
+        break
+      }
     }
   }
 
   const remaining = MAX_ATTEMPTS - game.attemptsUsed
-  const feedback = game.lastLikeness
+  const open = openSlots(game)
+  const complete = isComplete(game)
 
   return (
     <div className="term__inner" onKeyDown={handleKeyDown}>
@@ -408,11 +395,34 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
             <i key={i} data-on={i < remaining || undefined} />
           ))}
         </span>
-        {feedback && (
-          <span key={`${feedback.word}-${feedback.value}`} className="term__feedback">
-            {feedback.value}/{feedback.length} CORRECTAS
+        <span className="term__progress">
+          CLAVE {game.wordLen} · {open} LIBRE{open === 1 ? '' : 'S'}
+        </span>
+      </div>
+
+      <div className="term__slots" aria-live="polite">
+        <span className="term__slots-caret" aria-hidden="true">
+          {'>'}
+        </span>
+        {game.selection.map((cell, slot) => (
+          <span
+            key={slot}
+            className="term__slot"
+            data-state={
+              cell === null ? 'empty' : game.locked.has(slot) ? 'locked' : 'picked'
+            }
+          >
+            {cell?.char ?? '·'}
           </span>
-        )}
+        ))}
+        <button
+          type="button"
+          className="pip-btn term__submit"
+          onClick={handleSubmit}
+          disabled={game.phase !== 'playing' || !complete}
+        >
+          DESCIFRAR
+        </button>
       </div>
 
       <div ref={memoryRef} className="term__memory">
@@ -428,11 +438,7 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
                   key={`${line.column}-${line.row}`}
                   line={line}
                   game={game}
-                  guessableIndexes={guessableIndexes}
-                  wordOrder={guessable}
-                  onGuess={handleGuess}
-                  onDud={handleDud}
-                  registerWord={wordButtons}
+                  onSelect={handleSelect}
                 />
               ))}
           </div>
@@ -448,8 +454,9 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
           ))}
         </div>
         <div className="term__hints">
-          <span>←→ SELECCIONAR</span>
+          <span>CLIC = SELECCIONAR</span>
           <span>ENTER DESCIFRAR</span>
+          <span>BACKSPACE BORRA</span>
           <span>N NUEVO</span>
         </div>
       </div>
@@ -488,100 +495,76 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
 
 /* ==========================================================================
    A single memory line
+
+   Drawn group by group, never character by character, because the group is
+   what the player aims at: a candidate word lights up whole when the pointer
+   is over any one of its letters. Every cell is a button and every cell is
+   the same colour — the words are only findable by reading the dump.
    ========================================================================== */
 
 interface BoardLineProps {
   line: Line
   game: Game
-  guessableIndexes: Set<number>
-  wordOrder: { wordIndex: number; token: Token }[]
-  onGuess: (wordIndex: number) => void
-  onDud: (dudId: string) => void
-  registerWord: MutableRefObject<(HTMLButtonElement | null)[]>
+  onSelect: (cell: Cell, dudId: string | null) => void
 }
 
-function BoardLine({
-  line,
-  game,
-  guessableIndexes,
-  wordOrder,
-  onGuess,
-  onDud,
-  registerWord,
-}: BoardLineProps) {
-  const parts: React.ReactNode[] = []
-  let cursor = 0
+function BoardLine({ line, game, onSelect }: BoardLineProps) {
+  const cellButton = (cell: Cell, dudId: string | null) => {
+    // Identity, not char equality: two candidates can share a letter, and
+    // character comparison would light up cells nobody ever touched.
+    const slot = game.selection.indexOf(cell)
+    const selected = slot >= 0
+    const locked = selected && game.locked.has(slot)
+    const rejected = selected && game.rejected.has(slot)
+    const dudUsed = dudId !== null && game.usedDuds.has(dudId)
 
-  line.tokens.forEach((token, i) => {
-    // Noise is plain text. It used to be one <span> per character with an
-    // onClick that charged an attempt — which is why a stray click anywhere
-    // on the board cost a quarter of your life.
-    if (token.start > cursor) {
-      parts.push(
-        <span key={`n${i}`} className="term__noise">
-          {line.content.slice(cursor, token.start)}
-        </span>,
-      )
-    }
-
-    if (token.kind === 'dud') {
-      const used = game.usedDuds.has(token.id)
-      parts.push(
-        <button
-          key={token.id}
-          type="button"
-          className="term__token term__token--dud"
-          data-used={used || undefined}
-          onClick={() => onDud(token.id)}
-          disabled={used}
-          aria-label={used ? 'Desbloqueo ya usado' : 'Desbloqueo'}
-        >
-          {token.text}
-        </button>,
-      )
-    } else {
-      const wordIndex = token.wordIndex as number
-      const locked = isWordLocked(game, wordIndex)
-      const playable = guessableIndexes.has(wordIndex)
-      const order = wordOrder.findIndex((w) => w.wordIndex === wordIndex)
-
-      parts.push(
-        <button
-          key={token.id}
-          type="button"
-          ref={
-            playable && order >= 0
-              ? (el) => {
-                  registerWord.current[order] = el
-                }
-              : undefined
-          }
-          className="term__token term__token--word"
-          data-locked={locked || undefined}
-          onClick={() => onGuess(wordIndex)}
-          disabled={locked}
-          tabIndex={playable ? 0 : -1}
-        >
-          {locked ? '·'.repeat(token.text.length) : token.text}
-        </button>,
-      )
-    }
-
-    cursor = token.end
-  })
-
-  if (cursor < line.content.length) {
-    parts.push(
-      <span key="tail" className="term__noise">
-        {line.content.slice(cursor)}
-      </span>,
+    return (
+      <button
+        key={cell.id}
+        type="button"
+        className="term__cell"
+        data-selected={selected || undefined}
+        data-locked={locked || undefined}
+        data-rejected={rejected || undefined}
+        disabled={game.phase !== 'playing' || dudUsed}
+        onClick={() => onSelect(cell, dudId)}
+        aria-label={dudId !== null ? 'Desbloqueo' : `Carácter ${cell.char}`}
+      >
+        {cell.char}
+      </button>
     )
   }
 
   return (
     <div className="term__line">
       <span className="term__addr">{line.address}</span>
-      <span className="term__content">{parts}</span>
+      <span className="term__content">
+        {line.groups.map((group: Group) => {
+          if (group.kind === 'word') {
+            return (
+              <span key={group.key} className="term__word">
+                {group.cells.map((cell) => cellButton(cell, null))}
+              </span>
+            )
+          }
+          if (group.kind === 'dud') {
+            return (
+              <span
+                key={group.key}
+                className="term__dud"
+                data-used={game.usedDuds.has(group.dudId) || undefined}
+              >
+                {group.cells.map((cell) => cellButton(cell, group.dudId))}
+              </span>
+            )
+          }
+          return (
+            <span key={group.key} className="term__noise">
+              {group.cells.map((cell) => cellButton(cell, null))}
+            </span>
+          )
+        })}
+      </span>
     </div>
   )
 }

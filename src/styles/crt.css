@@ -31,60 +31,62 @@
   inset: 0;
   z-index: 2;
   pointer-events: none;
+  /* The RGB aperture grille that used to live here is gone. It was 1px red,
+     1px green, 1px blue at 3.5% each, on a 3px period, stacked over 1px
+     scanlines on the same 3px period: two square grids on one period beat
+     against the device pixel grid and produced large-scale diagonal moire.
+     Because the pattern is symmetric the fringes came out as a broad Lambda
+     across the middle of the tube, which is what made the whole screen look
+     washed out and uneven. It was never a reflection — it was aliasing. */
   background:
-    /* vignette */
+    /* Vignette. Softened hard: this sits on top of every pixel of content. */
     radial-gradient(
-      ellipse 78% 72% at 50% 50%,
-      transparent 52%,
-      rgba(0, 0, 0, 0.35) 82%,
-      rgba(0, 0, 0, 0.72) 100%
+      ellipse 92% 86% at 50% 50%,
+      transparent 70%,
+      rgba(0, 0, 0, 0.16) 88%,
+      rgba(0, 0, 0, 0.3) 100%
     ),
-    /* aperture grille: RGB subpixel columns */
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 40, 40, 0.035) 0 1px,
-      rgba(40, 255, 40, 0.035) 1px 2px,
-      rgba(40, 60, 255, 0.035) 2px 3px
-    ),
-    /* scanlines */
+    /* Scanlines only, and on a 4px period rather than 3px. 4 divides evenly
+       into more device pixel ratios than 3 does, and a lone horizontal grid
+       cannot beat into diagonals the way a crossed one could. */
     repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.22) 0 1px,
-      transparent 1px 3px
+      rgba(0, 0, 0, 0.13) 0 1px,
+      transparent 1px 4px
     );
   background-size:
     100% 100%,
-    3px 100%,
-    100% 3px;
+    100% 4px;
 }
 
-/* ---- Rolling scan bar, flicker, glass glare ------------------------------ */
+/* ---- Rolling scan bar ----------------------------------------------------
+   The specular glass glare that used to sit in the first slot here has been
+   removed. It was a soft ellipse over the whole tube, and over a near-black
+   phosphor surface it read as a large light wash rather than as a highlight.
+
+   DIAGNOSTIC: the screen is composited from four overlays, and it has been
+   hard to tell which one is responsible for a bright wedge. Comment out one
+   line at a time and reload to isolate it:
+     1. the gradient in .crt--fx::before  -> the vignette
+     2. the aperture-grille layer         -> RGB stripes every 3px
+     3. the scanline layer                -> black 1px every 3px
+     4. the linear-gradient below         -> the rolling band                */
 .crt--fx::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 3;
   pointer-events: none;
-  background:
-    /* glass curvature: soft specular highlight, upper-left */
-    radial-gradient(
-      ellipse 45% 32% at 32% 18%,
-      rgba(200, 255, 210, 0.045) 0%,
-      transparent 70%
-    ),
-    /* the slow bright band that rolls down a real CRT */
-    linear-gradient(
-      to bottom,
-      transparent 0%,
-      rgba(190, 255, 200, 0.028) 45%,
-      rgba(190, 255, 200, 0.055) 50%,
-      rgba(190, 255, 200, 0.028) 55%,
-      transparent 100%
-    );
-  background-size:
-    100% 100%,
-    100% 22%;
-  background-repeat: no-repeat, no-repeat;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(190, 255, 200, 0.028) 45%,
+    rgba(190, 255, 200, 0.055) 50%,
+    rgba(190, 255, 200, 0.028) 55%,
+    transparent 100%
+  );
+  background-size: 100% 22%;
+  background-repeat: no-repeat;
   animation:
     crt-flicker 0.18s steps(1, end) infinite,
     crt-roll 7.5s linear infinite;
@@ -123,14 +125,10 @@
 
 @keyframes crt-roll {
   from {
-    background-position:
-      0 0,
-      0 -100%;
+    background-position: 0 -100%;
   }
   to {
-    background-position:
-      0 0,
-      0 200%;
+    background-position: 0 200%;
   }
 }
 

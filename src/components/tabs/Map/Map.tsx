@@ -2,12 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import type { Map as MapboxMap, Marker } from 'mapbox-gl'
-import { MAP_CENTER, MAP_LOCATIONS } from '../../../data/mapLocations'
+import { MAP_CENTER, MAP_LOCATIONS, CATEGORY_ICON_PATHS } from '../../../data/mapLocations'
 import type { MapCategory, MapLocation } from '../../../data/mapLocations'
 import { LocationPanel } from './LocationPanel'
 import { OffscreenPOIIndicators } from './OffscreenPOIIndicators'
-import studyIcon from '../../../assets/icons/map/graduate-cap.svg?raw'
-import workIcon from '../../../assets/icons/map/briefcase.svg?raw'
 import clickSfx from '../../../assets/sfx/mechanical-click.wav'
 import { playSfx } from '../../../utils/sfx'
 import './Map.css'
@@ -16,11 +14,6 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
 const MAPBOX_STYLE_URL = import.meta.env.VITE_MAPBOX_STYLE_URL as string | undefined
 
 const MAP_ZOOM = { min: 11, max: 17 } as const
-
-const CATEGORY_ICONS: Record<MapCategory, string> = {
-  estudio: studyIcon,
-  trabajo: workIcon,
-}
 
 const CATEGORY_LABEL: Record<MapCategory, string> = {
   estudio: 'ESTUDIO',
@@ -33,9 +26,11 @@ function markerHtml(location: MapLocation): HTMLButtonElement {
   wrapper.type = 'button'
   wrapper.className = 'map-marker'
   wrapper.setAttribute('aria-label', `${location.nombre} — ${CATEGORY_LABEL[location.categoria]}`)
+  // The path is inlined rather than read from the .svg with ?raw: same data,
+  // and the fill comes from `currentColor` via .map-marker__icon svg.
   wrapper.innerHTML = `
     <span class="map-marker__head">
-      <span class="map-marker__icon">${CATEGORY_ICONS[location.categoria]}</span>
+      <svg class="map-marker__icon" viewBox="0 0 512 512" aria-hidden="true"><path d="${CATEGORY_ICON_PATHS[location.categoria]}"/></svg>
     </span>
     <span class="map-marker__stem" aria-hidden="true"></span>
     <span class="map-marker__label" aria-hidden="true">${location.nombre}</span>
@@ -168,6 +163,20 @@ export function Map() {
     [mapInstance],
   )
 
+  /** Open a location and bring it into view. Used by the off-screen pips. */
+  const selectLocation = useCallback(
+    (location: MapLocation) => {
+      setSelected(location)
+      playSfx(clickSfx)
+      mapInstance?.easeTo({
+        center: [location.lng, location.lat],
+        zoom: Math.min(MAP_ZOOM.max, mapInstance.getZoom() + 1),
+        duration: 620,
+      })
+    },
+    [mapInstance],
+  )
+
   if (!configured || mapFailed) {
     return (
       <div className="map map--status">
@@ -189,7 +198,7 @@ export function Map() {
     <div ref={containerRef} className="map">
       <div className="map__reticle" aria-hidden="true" />
 
-      <OffscreenPOIIndicators map={mapInstance} />
+      <OffscreenPOIIndicators map={mapInstance} onSelect={selectLocation} />
 
       <div className="map__hud">
         <div className="map__hud-row">
@@ -208,6 +217,7 @@ export function Map() {
           <span className="map__hud-label">ZOOM</span>
           <span className="map__hud-value">{zoom.toFixed(1)}</span>
         </div>
+        <p className="map__hud-hint">PULSA UN PIN O UNA FLECHA</p>
       </div>
 
       <div className="map__controls">

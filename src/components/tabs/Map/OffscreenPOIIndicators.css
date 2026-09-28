@@ -3,12 +3,19 @@
    A pip sits on the border of the viewport pointing at the hidden location.
    The arrow is a single rotated triangle, so corners work without any
    per-edge special-casing.
+
+   These used to be aria-hidden, pointer-transparent and unlabelled, which
+   made them decorative: a bare 6px triangle with no name and nothing to
+   click. They are the only way to reach a location that is currently out of
+   frame, so they are now real buttons carrying the location's name.
    ========================================================================== */
 
 .offscreen {
   position: absolute;
   inset: 0;
   z-index: 3;
+  /* The container ignores the pointer so the map keeps panning; each pip
+     opts back in below. */
   pointer-events: none;
   overflow: hidden;
 }
@@ -17,22 +24,152 @@
   position: absolute;
   top: 0;
   left: 0;
-  transform: translate3d(var(--x), var(--y), 0);
+  display: grid;
+  place-items: center;
+  /* Room for the chip and the arrow in the rotated frame. */
+  width: 0;
+  height: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+  /* The rotation lives HERE, on the button, not on the arrow.
+     Two reasons, both learned the hard way:
+     1. The chip counter-rotates itself to stay horizontal, and it can only do
+        that if something up the tree is rotating it. With the rotation on the
+        arrow alone, the chip got rotate(-angle) with no matching +angle and
+        just leaned over.
+     2. +90deg. A border-bottom triangle points up (-Y), and rotate(t) maps -Y
+        to (sin t, -cos t) — so rotate(angle) alone left every arrow 90 degrees
+        off its ray, pointing up-right when the POI was down-right. */
+  --rot: calc(var(--angle) + 90deg);
+  transform: translate3d(var(--x), var(--y), 0) rotate(var(--rot));
+  touch-action: manipulation;
 }
 
+/* Hit area: the button box is zero-sized (the arrow is positioned in a
+   rotated frame), so it needs a real target or it is near-impossible to hit. */
+.offscreen__pip::before {
+  content: '';
+  position: absolute;
+  width: calc(var(--u) * 3.2);
+  height: calc(var(--u) * 3.2);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+
+.offscreen__pip:hover::before,
+.offscreen__pip:focus-visible::before {
+  background: rgba(158, 206, 106, 0.1);
+}
+
+/* ---- The chip: icon + name ----------------------------------------------
+   Two transforms, and the order is the whole trick:
+     translateY(calc(--u * --chip-k))
+                         runs in the button's rotated frame, and with
+                         --rot = angle + 90 the local +Y axis points INWARD
+                         (the arrow's -Y points outward). So the chip always
+                         moves away from the hidden POI, whichever edge the
+                         pip is sitting on. Doing it after the counter-rotation
+                         instead would shove it up on screen and off the side
+                         at the corners.
+                         --chip-k is 1.6 on a top/bottom edge and 7 on a
+                         left/right one, where a wider shift is what keeps a
+                         horizontal chip from hanging off the viewport.
+     rotate(calc(var(--rot) * -1))
+                         undoes the button's rotation so the text is level. */
+.offscreen__chip {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.3);
+  max-width: calc(var(--u) * 11);
+  padding: calc(var(--u) * 0.12) calc(var(--u) * 0.45);
+  white-space: nowrap;
+  color: var(--pipboy-hot);
+  background: rgba(7, 11, 5, 0.9);
+  border: 1px solid var(--pipboy-color-dim);
+  box-shadow: 0 0 calc(var(--u) * 0.6) rgba(158, 206, 106, 0.25);
+  transform: translateY(calc(var(--u) * var(--chip-k)))
+    rotate(calc(var(--rot) * -1));
+  transform-origin: 50% 50%;
+  transition:
+    background var(--snap-fast),
+    border-color var(--snap-fast);
+}
+
+/* A leader line from the arrow to the chip. No rotation: the button's frame
+   already has local +Y pointing inward, so height alone runs the right way.
+   It stops short of the chip's centre by roughly its half-height, otherwise
+   ::after — which paints after the child — would draw a line across the chip. */
+.offscreen__pip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: calc(var(--u) * (var(--chip-k) - 1.1));
+  background: linear-gradient(
+    to bottom,
+    var(--pipboy-color),
+    var(--pipboy-color-faint)
+  );
+  pointer-events: none;
+}
+
+.offscreen__pip:hover .offscreen__chip,
+.offscreen__pip:focus-visible .offscreen__chip {
+  background: rgba(158, 206, 106, 0.18);
+  border-color: var(--pipboy-hot);
+}
+
+/* The focus ring goes on the chip, not the button: the button is a zero-size
+   box and its outline collapsed to a stub at the origin. */
+.offscreen__pip:focus-visible {
+  outline: none;
+}
+
+.offscreen__pip:focus-visible .offscreen__chip {
+  outline: 1px solid var(--pipboy-hot);
+  outline-offset: 2px;
+}
+
+.offscreen__icon {
+  flex: 0 0 auto;
+  width: calc(var(--u) * 0.75);
+  height: calc(var(--u) * 0.75);
+  fill: currentColor;
+}
+
+.offscreen__name {
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- The arrow -----------------------------------------------------------
+   No rotation here any more: the button already carries it, and the +90 in
+   --rot is what lines the triangle's up-pointing tip up with the ray. Just
+   centre it on the origin, nudged a touch inward so the tip is not clipped
+   by the container's overflow against the viewport edge. */
 .offscreen__arrow {
   display: block;
   width: 0;
   height: 0;
-  border-left: calc(var(--u) * 0.42) solid transparent;
-  border-right: calc(var(--u) * 0.42) solid transparent;
-  border-bottom: calc(var(--u) * 0.62) solid var(--pipboy-color);
-  filter: drop-shadow(0 0 calc(var(--u) * 0.3) var(--pipboy-color-glow));
-  /* rotate() points the triangle's tip along the ray; the translate() pulls
-     it back so the tip, not the centroid, lands on the border point */
-  transform: translate(-50%, -85%) rotate(var(--angle));
-  transform-origin: 50% 85%;
+  border-left: calc(var(--u) * 0.6) solid transparent;
+  border-right: calc(var(--u) * 0.6) solid transparent;
+  border-bottom: calc(var(--u) * 0.95) solid var(--pipboy-color);
+  filter: drop-shadow(0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow));
+  transform: translate(-50%, -50%) translateY(calc(var(--u) * 0.45));
   animation: offscreen-pulse 1.8s steps(1, end) infinite;
+}
+
+.offscreen__pip:hover .offscreen__arrow,
+.offscreen__pip:focus-visible .offscreen__arrow {
+  border-bottom-color: var(--pipboy-hot);
 }
 
 @keyframes offscreen-pulse {
@@ -43,5 +180,12 @@
   }
   80% {
     opacity: 0.3;
+  }
+}
+
+/* Nothing to point at: drop the pulse but keep the name readable. */
+@media (prefers-reduced-motion: reduce) {
+  .offscreen__arrow {
+    animation: none;
   }
 }

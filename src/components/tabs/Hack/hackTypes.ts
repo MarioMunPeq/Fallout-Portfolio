@@ -13,11 +13,9 @@ export interface Difficulty {
   maxLen: number
   /** Extra symbols added to the base noise set (. , ; : ! ? ' - `). */
   symbols: string
-  /** Probability (0..1) that a noise cell is a random letter. */
-  letterChance: number
   /**
    * How many candidate words sit on the board. This is the real difficulty
-   * lever: a bigger pool means a lower chance of guessing blind.
+   * lever: a bigger pool means more plausible answers to be wrong about.
    */
   candidates: number
 }
