@@ -64,13 +64,19 @@
       property="og:description"
       content="Seis módulos, un tubo de rayos catódicos y ni una sola página web: un portfolio dentro de un Pip-Boy de Fallout 3."
     />
+    <!-- JPEG, not PNG, and 88 KB instead of 641. WhatsApp fetched this page
+         fine — it picked up a new og:description on the first try — but kept
+         dropping the picture, which points at the image itself: the PNG was
+         RGBA, 641 KB, and WhatsApp's thumbnailer is happiest with a small
+         opaque bitmap in the format it produces anyway. og.png stays in the
+         repo as the master copy; this is the one the crawlers get. -->
     <meta
       property="og:image"
-      content="https://MarioMunPeq.github.io/Vault-Archive/og.png"
+      content="https://MarioMunPeq.github.io/Vault-Archive/og.jpg"
     />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta
       property="og:image:alt"
       content="Cartel de Vault Archive: logotipo de Fallout Portfolio en azul sobre fondo verde fósforo, con el subtítulo Pip-Boy 3000 · Mario Muñoz Pequeño · Pega Developer."
@@ -84,7 +90,7 @@
     />
     <meta
       name="twitter:image"
-      content="https://MarioMunPeq.github.io/Vault-Archive/og.png"
+      content="https://MarioMunPeq.github.io/Vault-Archive/og.jpg"
     />
   </head>
   <body>
