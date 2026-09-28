@@ -27,6 +27,29 @@
 
          The image lives in public/og.png (1200x630). See public/.gitkeep.
          ========================================================================== -->
+    <!-- Favicon. `public/` is copied to the root of the build untouched, so
+         this resolves to <base>/favicon.ico. `%BASE_URL%` rather than a literal
+         path: Vite substitutes the configured base when it builds, so the link
+         keeps working if `base` ever changes.
+         The .ico carries 16, 32, 48, 64, 128 and 256 so the tab, the bookmarks
+         bar and a desktop shortcut all get a legible one. -->
+    <link rel="icon" type="image/x-icon" href="%BASE_URL%favicon.ico" />
+    <link rel="shortcut icon" type="image/x-icon" href="%BASE_URL%favicon.ico" />
+
+    <!-- The tab icon has to be an .ico, but iOS ignores those: for "add to home
+         screen" it wants a square PNG. 256x256 is what the site ships; Safari
+         scales it down itself. -->
+    <link rel="apple-touch-icon" href="%BASE_URL%icons/256.png" />
+    <link rel="apple-touch-icon" sizes="128x128" href="%BASE_URL%icons/128.png" />
+
+    <!-- Android install prompt and the splash colour. The paths inside
+         public/site.webmanifest are absolute and hand-written, so that file is
+         the one place that breaks if `base` changes. -->
+    <link rel="manifest" href="%BASE_URL%site.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Vault Archive" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
     <link rel="canonical" href="https://MarioMunPeq.github.io/Vault-Archive/" />
 
     <meta property="og:type" content="website" />
