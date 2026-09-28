@@ -39,6 +39,12 @@
   grid-template-areas:
     'screen panel'
     'deck   panel';
+  /* Nothing on the case may paint outside it. The panel and the deck are
+     content-sized, and on a short viewport their stacks can add up to more
+     than the row they are in — without this they drew over each other and
+     over the void around the shell. The element's own box-shadow is not
+     affected by `overflow`. */
+  overflow: hidden;
   /* A wider right strip than before: the module strip now lives in its own
      recessed sub-panel and needs the room. */
   grid-template-columns: minmax(0, 1fr) clamp(132px, 11.5vw, 190px);
@@ -887,5 +893,22 @@
   /* Below this the corner fasteners are inside the bezels, not the shell. */
   .device__rivet {
     display: none;
+  }
+}
+
+/* Short viewport — a phone in landscape, or a laptop window squashed down.
+   The panel's stack (six labels, the RADS dial, the TUNE knob, the vents) is
+   about 370px tall, which is more than a landscape phone has left once the
+   deck and the case padding have taken their cut. The vents are the only
+   purely decorative part of it, so they go first; the dials already size off
+   the width, and their printed scales are tied to that same vw, so shrinking
+   them here would throw the ticks outside the face. */
+@media (max-height: 520px) {
+  .device__vents {
+    display: none;
+  }
+
+  .device__label {
+    padding: clamp(1px, 0.3vh, 4px) clamp(2px, 0.35vw, 6px);
   }
 }

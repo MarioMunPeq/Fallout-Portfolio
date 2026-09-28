@@ -1,19 +1,32 @@
 /* ==========================================================================
    STATUS — character sheet
    Rows: identity / S.P.E.C.I.A.L. / readout+conditions.
-   One bounded grid; the status bar can never be pushed off.
+   The status bar can never be pushed off: the rows carry height floors and
+   the tab scrolls when they do not all fit, so nothing is ever clipped into
+   its neighbour.
    ========================================================================== */
 
 .status {
   display: grid;
   /* Identity / S.P.E.C.I.A.L. / readout+conditions. The stat block gets a
-     bigger share than the readout, which used to be mostly empty space. */
-  grid-template-rows: auto minmax(0, 1.55fr) minmax(0, 1fr);
+     bigger share than the readout, which used to be mostly empty space.
+
+     Both rows carry a floor. Without one they collapse to whatever was left
+     over after the identity block, and on a phone the ESTADO block was left
+     with about twenty pixels — which is how four condition cells ended up
+     printed on top of each other. The lower floor is the height of the ESTADO
+     block itself: its padding and title plus two rows of cells at their
+     minimum (see .conditions). A floor that does not fit turns into a scroll
+     (see `overflow-y` below) rather than into clipped, overlapping text. On a
+     screen with room every floor is below the fr share and nothing moves. */
+  grid-template-rows: auto minmax(calc(var(--u) * 15), 1.55fr)
+    minmax(calc(var(--u) * 16), 1fr);
   gap: var(--gap);
   padding: var(--pad);
   min-height: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* ---- Identity ------------------------------------------------------------ */
@@ -290,9 +303,18 @@
 .conditions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: minmax(0, 1fr);
+  /* A cell needs ~3.6u for label + value + track, and ~5.4u with the glyph.
+     `minmax(0, 1fr)` forced all four cells into whatever height the block had
+     left, and the three auto rows inside a cell were taller than that: the
+     cells then spilled over their neighbours and the block read as a smear of
+     overlapping labels. Content-sized rows plus a scroll container means the
+     worst case is "scroll me", never "printed on top of itself". */
+  grid-auto-rows: minmax(calc(var(--u) * 5.4), auto);
+  align-content: start;
   gap: var(--gap-sm);
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .condition {
@@ -303,6 +325,8 @@
   gap: calc(var(--u) * 0.2);
   padding: var(--gap-xs);
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
   background: rgba(0, 0, 0, 0.25);
 }
 
@@ -328,6 +352,13 @@
   font-size: var(--fs-xs);
   letter-spacing: var(--track);
   color: var(--pipboy-color-faint);
+  /* MUNICIÓN and ARMADURA are the longest labels and the cells are half the
+     panel wide on a phone. Without this they broke out of the cell and landed
+     on top of the neighbouring value. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .condition__value {
@@ -335,6 +366,7 @@
   letter-spacing: var(--track-tight);
   color: var(--pipboy-color);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .condition__track {
@@ -371,17 +403,48 @@
   .special-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  /* Three columns of cells means three rows instead of two, so the S.P.E.C.I.A.L.
+     floor has to cover three stacked cells, not two. Each cell is worth about
+     8.5u with its letter, value, tag and pips; the lamp takes what is left. */
+  .status {
+    grid-template-rows: auto minmax(calc(var(--u) * 26), 1.55fr)
+      minmax(calc(var(--u) * 16), 1fr);
+  }
 }
 
 @media (max-width: 760px) {
   .status__lower {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  /* Stacked, the lower block has to hold the readout *and* the ESTADO block,
+     so its floor is the sum of the two plus the gap between them. */
+  .status {
+    grid-template-rows: auto minmax(calc(var(--u) * 26), 1.55fr)
+      minmax(calc(var(--u) * 24), 1fr);
   }
 
   .status__facts {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--gap-xs);
+  }
+}
+
+/* Short tube — a phone in landscape, or a laptop window squashed down. The
+   ESTADO block keeps its floor either way, so the glyphs are the first thing
+   to go: the label, the value and the bar are what the block is read for. */
+@media (max-height: 700px) {
+  .condition__icon {
+    display: none;
+  }
+
+  .condition {
+    grid-template-rows: auto auto auto;
+  }
+
+  .conditions {
+    grid-auto-rows: minmax(calc(var(--u) * 3.6), auto);
   }
 }
 

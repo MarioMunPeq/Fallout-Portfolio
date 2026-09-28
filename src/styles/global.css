@@ -19,7 +19,13 @@ html,
 body,
 #root {
   height: 100%;
-  min-height: 100vh;
+  /* NOT 100vh. `vh` is the LARGE viewport: on a phone it stays taller than what
+     is actually on screen while the URL bar is showing, and `body` has
+     `overflow: hidden`, so those extra pixels were unreachable and the bottom
+     deck — the POWER lamp — sat below the fold. `dvh` tracks the visible
+     viewport instead. A browser without `dvh` drops the declaration entirely
+     and falls back to `height: 100%`, which is the same number. */
+  min-height: 100dvh;
 }
 
 body {
@@ -38,6 +44,13 @@ body {
   overflow: hidden;
   display: grid;
   place-items: center;
+  /* The device bleeds to the edges on purpose, but not under a notch or the
+     home indicator: the deck with the POWER lamp is the bottom row of the case
+     and was the first thing to disappear. `env()` is 0 on every device without
+     a cutout, so this costs nothing on desktop. Needs `viewport-fit=cover` in
+     index.html to have any effect. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 button {
