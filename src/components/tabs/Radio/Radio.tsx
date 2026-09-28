@@ -13,6 +13,8 @@ export function Radio() {
     track,
     trackIndex,
     trackCount,
+    hasSignal,
+    hasProgramme,
     volume,
     radioOn,
     isPlaying,
@@ -31,7 +33,10 @@ export function Radio() {
     changeVolume,
   } = useRadio()
 
-  const offAir = trackCount === 0
+  // A dead frequency, as opposed to a live station with no programme on it.
+  // Both are real: the difference is that the dead one is not on the band at
+  // all, while ONDA REFUGIO simply carries no music.
+  const offAir = !hasSignal
   const readout = tuning ? scanFrequency : station.frequency
   // Where the needle sits across the dial, 0-1.
   const needle = (readout - BAND.min) / (BAND.max - BAND.min)
@@ -108,13 +113,21 @@ export function Radio() {
         <header className="nowplaying">
           <div className="nowplaying__text">
             <span className="pip-label">{station.tagline}</span>
-            <h2 className="nowplaying__track">{track?.name ?? '— — —'}</h2>
-            <span className="nowplaying__artist">{track?.artist ?? station.name}</span>
+            {/* A station with no programme shows its own name: there is no
+                track to headline, but there is still a station on the dial. */}
+            <h2 className="nowplaying__track">{track?.name ?? station.name}</h2>
+            <span className="nowplaying__artist">
+              {track?.artist ?? (offAir ? 'FRECUENCIA MUERTA' : 'SIN PROGRAMACIÓN')}
+            </span>
           </div>
 
           <div className="nowplaying__time">
-            <span className="nowplaying__elapsed">{formatTime(currentTime)}</span>
-            <span className="nowplaying__total">/ {formatTime(duration)}</span>
+            <span className="nowplaying__elapsed">
+              {hasProgramme ? formatTime(currentTime) : '--:--'}
+            </span>
+            <span className="nowplaying__total">
+              / {hasProgramme ? formatTime(duration) : '--:--'}
+            </span>
           </div>
         </header>
 
@@ -127,7 +140,7 @@ export function Radio() {
             step={0.5}
             value={Math.min(currentTime, Math.max(duration, 1))}
             onChange={(e) => seek(Number(e.target.value))}
-            disabled={offAir || duration === 0}
+            disabled={!hasProgramme || duration === 0}
             aria-valuetext={`${formatTime(currentTime)} de ${formatTime(duration)}`}
           />
         </label>
@@ -140,8 +153,8 @@ export function Radio() {
         />
       </section>
 
-      {/* ================= EMISORAS + PISTAS ================= */}
-      <section className="radio__stations pip-panel" aria-label="Emisoras y pistas">
+      {/* ================= EMISORAS ================= */}
+      <section className="radio__stations pip-panel" aria-label="Emisoras">
         <div className="radio__list">
           <h3 className="pip-label radio__panel-title">EMISORAS</h3>
 
@@ -167,7 +180,11 @@ export function Radio() {
 
         <div className="radio__list">
           <h3 className="pip-label radio__panel-title">
-            {offAir ? 'SIN EMISIÓN' : `PISTAS · ${trackIndex + 1}/${trackCount}`}
+            {offAir
+              ? 'SIN EMISIÓN'
+              : hasProgramme
+                ? `PISTAS · ${trackIndex + 1}/${trackCount}`
+                : 'SIN PROGRAMACIÓN'}
           </h3>
 
           <ul className="tracks pip-scroll">
@@ -175,12 +192,12 @@ export function Radio() {
               <li className="track track--empty">
                 <p className="pip-label">FRECUENCIA MUERTA</p>
                 <p className="track__hint">
-                  Arrastra archivos de audio a
+                  Gira el dial hacia
                   <br />
-                  <code>SYS:\AUDIO\RADIO\ESTACION-N</code>
+                  <code>RADIO YERMO</code> o <code>ONDA REFUGIO</code>
                 </p>
               </li>
-            ) : (
+            ) : hasProgramme ? (
               stations[stationIndex].tracks.map((t, i) => (
                 <li key={t.url}>
                   <button
@@ -197,12 +214,25 @@ export function Radio() {
                   </button>
                 </li>
               ))
+            ) : (
+              /* On air, tuned, metered — and deliberately without music. The
+                 programme lives on RADIO YERMO. */
+              <li className="track track--empty">
+                <p className="pip-label">EMISORA MUDO</p>
+                <p className="track__hint">
+                  ESTA FRECUENCIA NO EMITE
+                  <br />
+                  MÚSICA · LA DE <code>RADIO YERMO</code>
+                </p>
+              </li>
             )}
           </ul>
         </div>
       </section>
 
-      {/* ================= TRANSPORTE ================= */}
+      {/* ================= TRANSPORTE =================
+          The skip buttons walk the current station's playlist. On a station
+          with no programme they are simply inert. */}
       <section className="radio__transport pip-panel" aria-label="Controles">
         <div className="radio__group">
           <span className="pip-label">PISTA</span>
@@ -211,7 +241,7 @@ export function Radio() {
               type="button"
               className="pip-btn radio__skip"
               onClick={() => changeTrack(-1)}
-              disabled={offAir}
+              disabled={!hasProgramme}
               aria-label="Pista anterior"
             >
               <span aria-hidden="true">⏮</span>
@@ -231,7 +261,7 @@ export function Radio() {
               type="button"
               className="pip-btn radio__skip"
               onClick={() => changeTrack(1)}
-              disabled={offAir}
+              disabled={!hasProgramme}
               aria-label="Pista siguiente"
             >
               <span aria-hidden="true">⏭</span>

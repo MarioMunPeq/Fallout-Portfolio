@@ -144,12 +144,15 @@
 .misiones__detail {
   display: grid;
   /* head / description / tech / objectives+actions.
-     The objectives track keeps a floor of about five lines. The four rows
+     The objectives track keeps a floor of about eight lines. The four rows
      around it are content-sized, so on a short tube they took everything and
      left the list a twenty-pixel slot, sliced through the middle of a line
-     right on top of the buttons. The panel itself scrolls (see below), so a
-     stack that does not fit is reachable instead of clipped. */
-  grid-template-rows: auto auto auto minmax(calc(var(--u) * 5), 1fr) auto;
+     right on top of the buttons. Two things stop that: the floor, and the
+     panel scrolling (below) so a stack that does not fit is reachable. The
+     list itself is ALWAYS a scroll container — it is never set to
+     `overflow: visible`, which is exactly how its items ended up painted over
+     the buttons on a phone. */
+  grid-template-rows: auto auto auto minmax(calc(var(--u) * 8), 1fr) auto;
   gap: var(--gap-sm);
   padding: var(--gap);
   min-height: 0;
@@ -243,6 +246,10 @@
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: var(--gap-xs);
   min-height: 0;
+  /* Belt and braces: the checklist below is a scroll container, so clipping the
+     section costs nothing and guarantees nothing inside it can reach the
+     buttons below, whatever the tracks above end up doing. */
+  overflow: hidden;
 }
 
 .detail__objectives-head {
@@ -280,6 +287,10 @@
   align-content: start;
   min-height: 0;
   padding-right: var(--gap-xs);
+  /* Always its own scroll box, at every size. A visible overflow here is what
+     painted the checklist over the action buttons. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .objective {
@@ -336,29 +347,5 @@
 
   .misiones__count {
     display: none;
-  }
-}
-
-/* ---- Tight tube: the detail panel becomes one scrolling column ------------
-   A phone gives the description the full width of the tube, so it runs to
-   seven or eight lines and eats the panel; a short window does the same
-   thing. Rather than fight over the leftover with a floor — a floor the
-   objectives list then overflows, painting itself over the buttons all over
-   again — every row goes content-sized and the panel scrolls as one column,
-   so the checklist keeps its full height. Above these thresholds the framed
-   layout with an internally scrolling checklist is unchanged. */
-@media (max-width: 720px), (max-height: 760px) {
-  .misiones__detail {
-    grid-template-rows: auto auto auto auto auto;
-    align-content: start;
-  }
-
-  .detail__objectives {
-    grid-template-rows: auto auto auto;
-  }
-
-  .objectives {
-    overflow: visible;
-    padding-right: 0;
   }
 }

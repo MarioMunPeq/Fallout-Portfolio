@@ -9,6 +9,10 @@ export interface RadioContextValue {
   track: RadioTrack | undefined
   trackIndex: number
   trackCount: number
+  /** The station is on air, regardless of whether it has anything to play. */
+  hasSignal: boolean
+  /** …and whether it has a playlist at all. The band currently has none. */
+  hasProgramme: boolean
 
   volume: number
   radioOn: boolean

@@ -28,7 +28,11 @@ export function RadioProvider({ children }: { children: ReactNode }) {
 
   const station = RADIO_STATIONS[stationIndex] ?? RADIO_STATIONS[0]
   const track = station.tracks[trackIndex] ?? station.tracks[0]
-  const hasSignal = station.tracks.length > 0
+  // Signal is a property of the frequency, not of whether the station happens
+  // to have a playlist. The band plays nothing, so deriving this from
+  // `tracks.length` left every station reading as a dead one.
+  const hasSignal = station.strength > 0
+  const hasProgramme = station.tracks.length > 0
 
   // Playback follows (track, radioOn). Volume is applied imperatively in
   // changeVolume so dragging the slider doesn't restart playback.
@@ -144,8 +148,9 @@ export function RadioProvider({ children }: { children: ReactNode }) {
     if (audio) audio.volume = clamped / 100
   }, [])
 
-  // Signal strength: full when playing, partial when merely tuned, zero while
-  // the dial is moving. Rises smoothly so the meter needle doesn't snap.
+  // Signal strength: the meter's full height once the programme is playing,
+  // half of it while merely tuned, and noise while the dial is moving. Rises
+  // smoothly so the meter needle doesn't snap.
   const targetSignal = tuning ? 0.08 : hasSignal ? station.strength : 0
   const [signal, setSignal] = useState(0)
 
@@ -168,6 +173,8 @@ export function RadioProvider({ children }: { children: ReactNode }) {
     track,
     trackIndex,
     trackCount: station.tracks.length,
+    hasSignal,
+    hasProgramme,
     volume,
     radioOn,
     isPlaying,

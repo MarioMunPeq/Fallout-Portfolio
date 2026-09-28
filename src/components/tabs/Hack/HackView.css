@@ -77,6 +77,8 @@
 .term__blocks {
   display: flex;
   gap: 2px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .term__blocks i {
@@ -112,10 +114,10 @@
   }
 }
 
-/* ---- The selection strip -------------------------------------------------
-   FNV shows the characters you have picked here, one slot per password
-   position, with the confirmed ones lit. It is the only place the player can
-   read their own guess back, so it gets its own row above the board. */
+/* ---- The trial strip -----------------------------------------------------
+   FNV shows the word you just tried here, one position per slot, with the
+   confirmed ones lit. It is the only place the player can read the result
+   back, so it gets its own row above the board. */
 .term__slots {
   display: flex;
   align-items: center;
@@ -150,7 +152,7 @@
   color: var(--pipboy-color-deep);
 }
 
-/* A fresh pick: lit but not yet confirmed. */
+/* A fresh trial, not scored yet: lit but not confirmed. */
 .term__slot[data-state='picked'] {
   color: var(--pipboy-hot);
   border-color: var(--pipboy-hot);
@@ -158,7 +160,7 @@
   text-shadow: 0 0 calc(var(--u) * 0.4) var(--pipboy-color-glow);
 }
 
-/* Confirmed by a previous attempt: solid, and it stays. */
+/* Confirmed by a previous guess: solid, and it stays. */
 .term__slot[data-state='locked'] {
   color: var(--screen-bg);
   background: var(--pipboy-color);
@@ -167,13 +169,22 @@
   box-shadow: 0 0 calc(var(--u) * 0.5) var(--pipboy-color-glow);
 }
 
-.term__submit {
+/* The last guess got this position wrong. */
+.term__slot[data-state='rejected'] {
+  color: #e05a4a;
+  border-color: #e05a4a;
+  background: rgba(224, 90, 74, 0.12);
+  text-shadow: 0 0 calc(var(--u) * 0.35) rgba(224, 90, 74, 0.6);
+  animation: term-reject 900ms steps(1, end) 1;
+}
+
+.term__clear {
   margin-left: auto;
   padding: calc(var(--u) * 0.2) var(--gap);
   font-size: var(--fs-2xs);
 }
 
-.term__submit:disabled {
+.term__clear:disabled {
   color: var(--pipboy-color-deep);
   border-color: var(--pipboy-color-deep);
   cursor: not-allowed;
@@ -249,18 +260,22 @@
 }
 
 /* ---- Cells ---------------------------------------------------------------
-   One button per character. Every character — noise, bracket, candidate
-   letter — is the SAME colour, because that is what makes the words a search
-   instead of a multiple-choice question. Two previous versions got this
-   wrong in opposite directions: one painted the words in hot phosphor over
-   inert noise (which handed over the answer set), the next removed the words
-   from the board entirely.
+   One button per candidate word and one per bracket pair; the noise is plain
+   text. Every character — noise, bracket, candidate letter — is the SAME
+   colour, because that is what makes the words a search instead of a
+   multiple-choice question. Two previous versions got this wrong in opposite
+   directions: one painted the words in hot phosphor over inert noise (which
+   handed over the answer set), the next removed the words from the board
+   entirely.
 
    The only thing that distinguishes a word is what happens when you point at
    it. */
+.term__char {
+  color: var(--pipboy-color-dim);
+}
+
 .term__word,
-.term__noise,
-.term__dud {
+.term__noise {
   display: inline;
 }
 
@@ -279,78 +294,60 @@
 }
 
 /* ---- Hover ---------------------------------------------------------------
-   Two different things, and they have to look different or the grouping is
-   pointless:
-     - a single character  -> one boxed, blazing white cell
-     - a whole word        -> the entire run lights as a band, so you can see
-                              the word's extent before committing to it
-   The word rule outranks the single-character one on specificity, so the
-   character under the pointer inside a word still gets its own box.        */
+   The grouping IS the affordance. A word and a bracket pair are single
+   buttons, so the box the hover paints wraps the entire run: you see the
+   extent of what you are about to press before you press it, which is exactly
+   what hovering a bracket pair has always done. */
 
-/* A single character, under the pointer, whatever it is. Deliberately loud:
-   on a wall of 60-odd symbols this is the only feedback you get. */
 .term__cell:hover:not(:disabled) {
   color: #ffffff;
   text-shadow:
     0 0 calc(var(--u) * 0.5) rgba(255, 255, 255, 0.95),
     0 0 calc(var(--u) * 1.1) rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.22);
   box-shadow:
     inset 0 0 0 1px #ffffff,
     0 0 calc(var(--u) * 0.6) rgba(255, 255, 255, 0.45);
 }
 
-/* The whole word. Lighting every cell in the run is the only affordance that
-   tells you "this is a word, click any of it". */
-.term__word:hover .term__cell,
-.term__word:focus-within .term__cell {
-  color: #ffffff;
-  text-shadow: 0 0 calc(var(--u) * 0.45) rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: none;
-}
-
-/* The character actually under the pointer keeps its box, so within a lit
-   word you can still see which letter you are about to take. */
-.term__word:hover .term__cell:hover,
-.term__word:focus-within .term__cell:focus-visible {
-  background: rgba(255, 255, 255, 0.34);
-  box-shadow: inset 0 0 0 1px #ffffff;
-}
-
 /* Bracket pairs: the dud. Same colour as the noise around it, so the only
-   tell is the two-character pattern — but the pair lights as a unit. */
-.term__dud:hover .term__cell,
-.term__dud:focus-within .term__cell {
-  color: #ffffff;
-  text-shadow: 0 0 calc(var(--u) * 0.45) rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: none;
-}
-
-.term__dud[data-used] .term__cell {
+   tell is the two-character pattern — but the pair lights and clicks as one. */
+.term__dud[data-used] {
   color: var(--pipboy-color-deep);
   cursor: default;
 }
 
-/* Currently in the guess. */
-.term__cell[data-selected] {
-  color: var(--pipboy-hot);
-  text-shadow: 0 0 calc(var(--u) * 0.35) var(--pipboy-color-glow);
-  box-shadow: inset 0 0 0 1px var(--pipboy-color-faint);
+/* A word that has already been tried. It is out of the running: the same
+   letters in the same places will always score the same, so the button is
+   disabled and dimmed. It keeps the marks of the last trial it was part of. */
+.term__word[data-tried] {
+  cursor: default;
+  color: var(--pipboy-color-deep);
 }
 
-/* Confirmed in the right position. Solid, the brightest thing on the board. */
-.term__cell[data-locked] {
+.term__word[data-tried] .term__char {
+  color: var(--pipboy-color-deep);
+}
+
+.term__word[data-tried]:hover {
+  background: rgba(224, 90, 74, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(224, 90, 74, 0.45);
+  color: rgba(224, 90, 74, 0.55);
+  text-shadow: none;
+}
+
+/* Confirmed in the right position. Solid, the brightest thing on the board.
+   Scoped through .term__word so it outranks the dimmed-tried rule above at
+   equal specificity, by order. */
+.term__word .term__char[data-locked] {
   color: var(--screen-bg);
   background: var(--pipboy-color);
   text-shadow: none;
-  font-weight: bold;
 }
 
-/* Wrong in that position: FNV turns these red and keeps them up until the
-   player picks over the top. */
-.term__cell[data-rejected] {
+/* Wrong in that position: FNV turns these red and they keep the marks until
+   the player clears them. */
+.term__word .term__char[data-rejected] {
   color: #e05a4a;
   text-shadow: 0 0 calc(var(--u) * 0.35) rgba(224, 90, 74, 0.6);
   animation: term-reject 900ms steps(1, end) 1;
@@ -520,6 +517,17 @@
 
   .term__foot {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The guess budget is the number of decoys on the board, so the bar can be
+     fourteen blocks wide on MUY DIFÍCIL. Squeeze them and drop the second
+     readout rather than let the bar push the strip off the terminal. */
+  .term__blocks i {
+    width: calc(var(--u) * 0.3);
+  }
+
+  .term__progress {
+    display: none;
   }
 }
 

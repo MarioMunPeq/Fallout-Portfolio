@@ -1,9 +1,10 @@
 import type { Difficulty, DifficultyId } from './hackTypes'
 import type { WordBuckets } from './words'
 
-export const MAX_ATTEMPTS = 4
-
-/** How long the terminal stays locked after you burn all four attempts. */
+/**
+ * How long the terminal stays locked after you run out of guesses. The attempt
+ * limit is not a number any more — see `guessesAllowed`.
+ */
 export const LOCKOUT_SECONDS = 8
 
 /** "0x" + 6 hex digits + 1 separating space. */
@@ -110,24 +111,32 @@ export interface Game {
   difficulty: Difficulty
   wordLen: number
   candidates: readonly string[]
-  correctIndex: number
+  /** Index of the password in `candidates`. */
+  targetIndex: number
   lines: readonly Line[]
+
   /**
-   * The cell currently filling each guess slot, or null.
+   * The word currently on trial, one cell per position. It is displayed in the
+   * strip above the board and is never assembled by hand any more: clicking a
+   * candidate puts the whole word here and scores it in the same gesture.
    *
    * It holds the Cell and not just its character on purpose. Two candidates
    * can share a letter, and character comparison would light up cells the
    * player never touched. Identity is the only comparison that behaves.
    */
-  selection: readonly (Cell | null)[]
-  /** Slots confirmed correct by a previous attempt. They stay locked in. */
+  trial: readonly (Cell | null)[]
+  /** Which candidate the trial belongs to; null before the first guess. */
+  trialWord: number | null
+  /** Positions of the password confirmed by any guess so far. They stay. */
   locked: ReadonlySet<number>
   /**
-   * Slots that were just wrong. Kept in state rather than on a timer so the
-   * red marks stay up exactly as long as the player is looking at them, and
-   * are cleared by the next click.
+   * Positions the last guess got wrong. Kept in state rather than on a timer so
+   * the red marks stay up exactly as long as the player is looking at them.
    */
   rejected: ReadonlySet<number>
+  /** Candidates already spent. A spent word is a dead end: the same letters
+      in the same places will always score the same, so it cannot be retried. */
+  tried: ReadonlySet<number>
   usedDuds: ReadonlySet<string>
   attemptsUsed: number
   log: readonly string[]
@@ -372,16 +381,19 @@ export function createGame(
     difficulty,
     wordLen,
     candidates,
-    correctIndex: randInt(0, candidates.length - 1),
+    targetIndex: randInt(0, candidates.length - 1),
     lines: buildBoard(difficulty, candidates, contentWidth, rows),
-    selection: Array.from({ length: wordLen }, () => null),
+    trial: Array.from({ length: wordLen }, () => null),
+    trialWord: null,
     locked: new Set(),
     rejected: new Set(),
+    tried: new Set(),
     usedDuds: new Set(),
     attemptsUsed: 0,
     log: [
       '>CONECTANDO CON EL NODO…',
-      '>LOCALIZA LA CONTRASEÑA EN EL VOLCADO',
+      '>LOCALIZA LAS PALABRAS EN EL VOLCADO',
+      '>CLIC EN UNA PALABRA PARA PROBARLA',
     ],
     lockedAt: null,
     phase: 'playing',
@@ -392,160 +404,156 @@ function pushLog(game: Game, ...lines: string[]): string[] {
   return [...game.log, ...lines].slice(-9)
 }
 
-/** How many guess slots are still open. */
-export function openSlots(game: Game): number {
-  let count = 0
-  for (let i = 0; i < game.wordLen; i++) {
-    if (!game.locked.has(i)) count++
-  }
-  return count
+/** Positions of the password confirmed so far. */
+export function confirmedSlots(game: Game): number {
+  return game.locked.size
 }
 
 /**
- * Every slot filled by a fresh pick or a confirmed letter, and nothing still
- * flagged wrong. The rejected check matters: right after a failed attempt the
- * wrong characters stay in their slots so they can be shown in red, and until
- * the player has replaced them the guess is not really a new guess.
+ * Guesses available on this board.
+ *
+ * There is no fixed attempt count any more, and that is the direct consequence
+ * of guessing whole words instead of assembling them letter by letter. The
+ * candidates are the only words on the board, so every word that is not the
+ * password can be ruled out by trying it — which makes the limit exactly the
+ * number of decoys. With a flat "four attempts" the game was unwinnable past
+ * NOVATO: ten candidates, four tries, and a dud cost you a letter. So there is
+ * no lockout left either; running out of guesses is not a state you can reach.
+ * What still costs you is time, and the risk on the bracket pairs.
  */
-export function isComplete(game: Game): boolean {
-  if (game.rejected.size > 0) return false
-  return game.selection.every((cell, i) => cell !== null || game.locked.has(i))
+export function guessesAllowed(difficulty: Difficulty): number {
+  return Math.max(1, difficulty.candidates - 1)
 }
 
-/**
- * Click a character. It lands in the first guess slot that still needs one, in
- * click order — the FNV rule. A slot still flagged wrong from the last attempt
- * is repaired first, so each new pick clears one red mark. Clicking a cell
- * that is already in the guess removes it again, so a misclick is undoable.
- */
-export function selectCell(game: Game, cell: Cell): Game {
-  if (game.phase !== 'playing') return game
-
-  const selection = [...game.selection]
-
-  const existing = selection.indexOf(cell)
-  if (existing >= 0) {
-    selection[existing] = null
-    const rejected = new Set(game.rejected)
-    rejected.delete(existing)
-    return { ...game, selection, rejected }
-  }
-
-  // A slot still marked wrong takes priority: that is the one the player is
-  // looking at.
-  let target = -1
-  for (const slot of game.rejected) {
-    if (slot >= 0 && slot < game.wordLen && !game.locked.has(slot)) {
-      target = slot
-      break
+/** The board cells of a candidate, in password order. */
+export function cellsForWord(game: Game, wordIndex: number): readonly Cell[] {
+  for (const line of game.lines) {
+    for (const group of line.groups) {
+      if (group.kind === 'word' && group.wordIndex === wordIndex) {
+        return group.cells
+      }
     }
   }
-
-  if (target < 0) {
-    for (let i = 0; i < game.wordLen; i++) {
-      if (game.locked.has(i)) continue
-      if (selection[i] !== null) continue
-      target = i
-      break
-    }
-  }
-
-  if (target < 0) return game
-
-  selection[target] = cell
-  const rejected = new Set(game.rejected)
-  rejected.delete(target)
-  return { ...game, selection, rejected }
+  return []
 }
 
-export type SubmitOutcome =
+export type TryOutcome =
   | { kind: 'success' }
   | { kind: 'partial'; correct: number; total: number; wrong: number[] }
   | null
 
 /**
- * Score the guess, FNV rules: characters in the right position lock in and
- * stay, the rest are flagged and shown in red while still occupying their slot
- * so the player can see which ones failed. A confirmed letter is never
- * cleared, so the known prefix accumulates across attempts.
+ * Try a whole candidate word. This is the only way into the guess strip: there
+ * is no assembling characters one at a time and no separate DESCIFRAR step, so
+ * aiming at a word and pressing it is a single gesture.
+ *
+ * Scoring is FNV, unchanged: characters in the right position lock in and stay,
+ * the rest are flagged and shown in red while still occupying their slot so the
+ * player can see which ones failed. A confirmed letter is never cleared, so
+ * the known positions accumulate across guesses.
  */
-export function submit(game: Game): { game: Game; outcome: SubmitOutcome } {
+export function tryWord(
+  game: Game,
+  wordIndex: number,
+): { game: Game; outcome: TryOutcome } {
   if (game.phase !== 'playing') return { game, outcome: null }
-  if (!isComplete(game)) return { game, outcome: null }
+  // A spent word always scores the same. Replaying it would cost a guess and
+  // teach nothing.
+  if (game.tried.has(wordIndex)) return { game, outcome: null }
 
-  const word = game.candidates[game.correctIndex] ?? ''
-  const next = [...game.selection]
+  const word = game.candidates[wordIndex] ?? ''
+  const target = game.candidates[game.targetIndex] ?? ''
+  const trial = [...cellsForWord(game, wordIndex)]
+
   const locked = new Set(game.locked)
   const wrong: number[] = []
   let correct = 0
 
   for (let slot = 0; slot < game.wordLen; slot++) {
     if (locked.has(slot)) continue
-    const chosen = next[slot]
-    if (chosen === null) continue
-
-    if (chosen.char === word[slot]) {
+    if (word[slot] === target[slot]) {
       locked.add(slot)
       correct++
     } else {
-      // Left in place on purpose: it stays visible in red until the player
-      // picks over it.
       wrong.push(slot)
     }
   }
 
+  const tried = new Set(game.tried).add(wordIndex)
   const attemptsUsed = game.attemptsUsed + 1
 
   if (locked.size === game.wordLen) {
     return {
       game: {
         ...game,
-        selection: next,
+        trial,
+        trialWord: wordIndex,
         locked,
+        tried,
         attemptsUsed,
         rejected: new Set(),
         phase: 'accessing',
-        log: pushLog(game, '>COINCIDENCIA EXACTA', '>ACCEDIENDO AL SISTEMA…'),
+        log: pushLog(game, `>${word}`, '>COINCIDENCIA EXACTA', '>ACCEDIENDO AL SISTEMA…'),
       },
       outcome: { kind: 'success' },
     }
   }
 
-  const dead = attemptsUsed >= MAX_ATTEMPTS
-  const log = pushLog(
-    game,
-    `>${next.map((cell) => cell?.char ?? '_').join('')}`,
-    '>ACCESO DENEGADO',
-    `>${correct} CORRECTAS · ${wrong.length} INCORRECTAS`,
-  )
-  if (dead) {
-    log.push('>INTENTOS RESTANTES: 0', `>TERMINAL BLOQUEADO ${LOCKOUT_SECONDS}s`)
-  }
-
   return {
     game: {
       ...game,
-      selection: next,
+      trial,
+      trialWord: wordIndex,
       locked,
+      tried,
       attemptsUsed,
       rejected: new Set(wrong),
-      phase: dead ? 'locked' : 'playing',
-      lockedAt: dead ? Date.now() : game.lockedAt,
-      log,
+      log: pushLog(
+        game,
+        `>${word}`,
+        '>ACCESO DENEGADO',
+        `>${correct} CORRECTAS · ${wrong.length} INCORRECTAS`,
+      ),
     },
     outcome: { kind: 'partial', correct, total: game.wordLen, wrong },
   }
 }
 
+/**
+ * Wipe the red marks without spending a guess. A bracket pair used to do this
+ * as one of its two outcomes; with word guessing there is nothing to wipe mid-
+ * assembly any more, so the pair's other half became the risk instead (see
+ * triggerDud) and this is just the undo.
+ */
+export function clearMarks(game: Game): Game {
+  if (game.phase !== 'playing') return game
+  if (game.rejected.size === 0) return game
+  return {
+    ...game,
+    rejected: new Set(),
+    log: pushLog(game, '>MARCAS DE ERROR BORRADAS'),
+  }
+}
+
 export type DudOutcome =
+  /** A confirmed letter, handed over for free. */
   | { kind: 'revealed'; slot: number; char: string }
-  | { kind: 'cleared' }
+  /** A guess spent on a word you did not choose. An empty `word` means there
+      was nothing left to spend and the pair was consumed for nothing. */
+  | { kind: 'spent'; word: string }
   | null
 
 /**
- * Bracket pair. FNV-accurate: it either hands you a confirmed letter or wipes
- * your selection. It never costs an attempt, and each pair is consumed so it
- * cannot be farmed — that trade-off is the whole point of the mechanic.
+ * Bracket pair. FNV-accurate: it either hands you a confirmed letter or burns
+ * one of your guesses on a word you did not choose. It never costs a guess by
+ * itself, and each pair is consumed so it cannot be farmed — that trade-off
+ * is the whole point of the mechanic.
+ *
+ * The second outcome used to be "your selection is wiped", which punished
+ * clicking a pair mid-assembly. There is no assembly to interrupt now: a click
+ * is a complete guess, so the risk became a guess you never made. Which word it
+ * spends is chosen among the ones you have not tried yet, so it can never
+ * waste a try on something already ruled out.
  */
 export function triggerDud(
   game: Game,
@@ -555,35 +563,36 @@ export function triggerDud(
   if (game.usedDuds.has(dudId)) return { game, outcome: null }
 
   const usedDuds = new Set(game.usedDuds).add(dudId)
-  const word = game.candidates[game.correctIndex] ?? ''
+  const word = game.candidates[game.targetIndex] ?? ''
 
   const open: number[] = []
   for (let slot = 0; slot < game.wordLen; slot++) {
     if (!game.locked.has(slot)) open.push(slot)
   }
 
-  if (open.length > 0 && Math.random() < 0.5) {
+  const untried: number[] = []
+  for (let i = 0; i < game.candidates.length; i++) {
+    if (i !== game.targetIndex && !game.tried.has(i)) untried.push(i)
+  }
+  const canSpend =
+    untried.length > 0 && game.attemptsUsed < guessesAllowed(game.difficulty)
+
+  if (open.length > 0 && (!canSpend || Math.random() < 0.5)) {
     const slot = pick(open)
 
-    // Reveal the real cell on the board, not a synthesised character, so the
-    // player sees a letter light up in the dump as well as in the strip.
-    let cell: Cell | null = null
-    for (const line of game.lines) {
-      for (const group of line.groups) {
-        if (group.kind === 'word' && group.wordIndex === game.correctIndex) {
-          cell = group.cells[slot] ?? null
-        }
-      }
-    }
+    // The revealed cell comes from the password, so it is shown in the strip
+    // only. Lighting it on the board would mark a cell of one specific word as
+    // correct and hand the player the answer.
+    const cell: Cell | null = cellsForWord(game, game.targetIndex)[slot] ?? null
 
-    const selection = [...game.selection]
-    selection[slot] = cell
+    const trial = [...game.trial]
+    trial[slot] = cell
 
     return {
       game: {
         ...game,
         usedDuds,
-        selection,
+        trial,
         locked: new Set(game.locked).add(slot),
         rejected: new Set(),
         log: pushLog(game, `>REVELACION: ${word[slot]} EN POSICION ${slot + 1}`),
@@ -592,18 +601,30 @@ export function triggerDud(
     }
   }
 
-  const cleared = game.selection.map((cell, i) =>
-    game.locked.has(i) ? cell : null,
-  )
+  if (canSpend) {
+    const victim = pick(untried)
+    // The log line goes in first so the console reads as one story: the pair
+    // spends a guess, and then the word it spent it on is scored.
+    const { game: next } = tryWord(
+      { ...game, usedDuds, log: pushLog(game, '>DESBLOQUEO: PRUEBA GASTADA') },
+      victim,
+    )
 
+    return {
+      game: next,
+      outcome: { kind: 'spent', word: game.candidates[victim] ?? '' },
+    }
+  }
+
+  // Every position is confirmed and every decoy is spent, which means the round
+  // is already over — but the pair still has to be consumed, or it would sit
+  // there clickable forever doing nothing.
   return {
     game: {
       ...game,
       usedDuds,
-      selection: cleared,
-      rejected: new Set(),
-      log: pushLog(game, '>BORRADO DE MEMORIA: SELECCION REINICIADA'),
+      log: pushLog(game, '>DESBLOQUEO: SIN EFECTO'),
     },
-    outcome: { kind: 'cleared' },
+    outcome: { kind: 'spent', word: '' },
   }
 }

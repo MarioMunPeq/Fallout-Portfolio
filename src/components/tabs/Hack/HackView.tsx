@@ -4,7 +4,6 @@ import { TabNav } from '../../TabNav/TabNav'
 import submoduleChangeSfx from '../../../assets/sfx/submodule_change.ogg'
 import clickSfx from '../../../assets/sfx/mechanical-click.wav'
 import okSfx from '../../../assets/sfx/UI_Pipboy_OK.ogg'
-import blockedSfx from '../../../assets/sfx/electric-hum.wav'
 import dudSfx from '../../../assets/sfx/computer-beep.wav'
 import restartSfx from '../../../assets/sfx/toggle-switch.mp3'
 import { playSfx } from '../../../utils/sfx'
@@ -13,15 +12,14 @@ import {
   DEFAULT_ROWS,
   DIFFICULTIES,
   LOCKOUT_SECONDS,
-  MAX_ATTEMPTS,
+  clearMarks,
+  confirmedSlots,
   createGame,
-  isComplete,
-  openSlots,
-  selectCell,
-  submit,
+  guessesAllowed,
   triggerDud,
+  tryWord,
 } from './hackGame'
-import type { Cell, Game, Group, Line } from './hackGame'
+import type { Game, Group, Line } from './hackGame'
 import type { DifficultyId } from './hackTypes'
 import type { WordBuckets } from './words'
 import { loadDictionary } from './words'
@@ -254,12 +252,12 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
     return () => window.clearTimeout(id)
   }, [game.phase])
 
-  /* ---- Timed lockout ------------------------------------------------------
-     The remaining seconds are derived from `lockedAt` and a ticking clock
-     rather than stored, so nothing has to be synchronised in an effect body.
-     When the clock runs out the terminal reopens with fresh attempts and the
-     strikes cleared: keeping them would leave the player with full attempts
-     but a board of words they can no longer click. */
+  /* ---- Lockout ------------------------------------------------------------
+      Kept as a phase, but nothing can reach it any more: the guess budget is
+      the number of decoys on the board, so it never runs out before the
+      password does. The reset below is the insurance policy for that claim —
+      if the budget ever does run dry, the terminal reopens with a fresh
+      password instead of a board of words the player can no longer try. */
   const lockedUntil = game.lockedAt === null ? 0 : game.lockedAt + LOCKOUT_SECONDS * 1000
   const lockout =
     game.lockedAt === null
@@ -282,17 +280,20 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
               ...current,
               phase: 'playing',
               attemptsUsed: 0,
-              // A full reset must also drop the confirmed letters, or the
-              // player gets fresh attempts against a board that is already
-              // half-solved and the password is no longer a secret.
+              // A full reset must also drop the confirmed letters and the
+              // spent words, or the player gets a fresh budget against a board
+              // that is already half-solved and half ruled out — and the
+              // password is no longer a secret.
               locked: new Set<number>(),
-              selection: Array.from({ length: current.wordLen }, () => null),
+              trial: Array.from({ length: current.wordLen }, () => null),
+              trialWord: null,
+              tried: new Set<number>(),
               rejected: new Set<number>(),
               lockedAt: null,
               log: [
                 '>DESBLOQUEO AUTOMATICO',
                 '>CONTRASENA CAMBIADA',
-                '>INTENTOS RESTAURADOS: 4',
+                `>PRUEBAS RESTAURADAS: ${guessesAllowed(current.difficulty)}`,
               ],
             }
           : current,
@@ -308,76 +309,68 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
     setGame(createGame(difficultyId, buckets, cols, rows))
   }, [difficultyId, buckets, cols, rows])
 
-  const handleSelect = useCallback((cell: Cell, dudId: string | null) => {
+  /**
+   * Aiming at a candidate word and pressing it is the whole guess. There is no
+   * letter-by-letter assembly and no DESCIFRAR step left: the word is grouped
+   * by the board, the click scores it, and the strip above shows the result.
+   */
+  const handleTryWord = useCallback((wordIndex: number) => {
     setGame((current) => {
       if (current.phase !== 'playing') return current
+      if (current.tried.has(wordIndex)) return current
 
-      if (dudId !== null) {
-        const { game: next, outcome } = triggerDud(current, dudId)
-        if (!outcome) return current
-        playSfx(dudSfx)
-        return next
-      }
+      const { game: next, outcome } = tryWord(current, wordIndex)
+      if (!outcome) return current
 
-      const next = selectCell(current, cell)
+      if (outcome.kind === 'success') playSfx(okSfx)
+      else playSfx(clickSfx)
+      return next
+    })
+  }, [])
+
+  const handleDud = useCallback((dudId: string) => {
+    setGame((current) => {
+      if (current.phase !== 'playing') return current
+      const { game: next, outcome } = triggerDud(current, dudId)
+      if (!outcome) return current
+      playSfx(dudSfx)
+      return next
+    })
+  }, [])
+
+  const handleClearMarks = useCallback(() => {
+    setGame((current) => {
+      const next = clearMarks(current)
       if (next === current) return current
       playSfx(clickSfx)
       return next
     })
   }, [])
 
-  const handleSubmit = useCallback(() => {
-    setGame((current) => {
-      if (current.phase !== 'playing') return current
-      const { game: next, outcome } = submit(current)
-      if (!outcome) return current
-
-      if (outcome.kind === 'success') playSfx(okSfx)
-      else if (next.phase === 'locked') playSfx(blockedSfx)
-      else playSfx(clickSfx)
-      return next
-    })
-  }, [])
-
   /* ---- Keyboard ------------------------------------------------------------
-     Tab moves through the grid natively, so the terminal only needs the
-     two verbs the board cannot express: submit and restart. */
+      The board is buttons, so Tab, Enter and Space all work natively on a
+      candidate word. The terminal only adds the two verbs the board cannot
+      express: clear the red marks and start a new password. */
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (game.phase !== 'playing') return
 
     switch (event.key) {
-      case 'Enter':
-      case ' ':
-        event.preventDefault()
-        handleSubmit()
-        break
       case 'n':
       case 'N':
         event.preventDefault()
         restart()
         break
       case 'Backspace': {
-        // Clear the right-most slot the player can still change.
         event.preventDefault()
-        setGame((current) => {
-          if (current.phase !== 'playing') return current
-          const next = [...current.selection]
-          for (let i = current.wordLen - 1; i >= 0; i--) {
-            if (!current.locked.has(i) && next[i] !== null) {
-              next[i] = null
-              break
-            }
-          }
-          return { ...current, selection: next, rejected: new Set() }
-        })
+        handleClearMarks()
         break
       }
     }
   }
 
-  const remaining = MAX_ATTEMPTS - game.attemptsUsed
-  const open = openSlots(game)
-  const complete = isComplete(game)
+  const allowed = guessesAllowed(game.difficulty)
+  const remaining = allowed - game.attemptsUsed
+  const confirmed = confirmedSlots(game)
 
   return (
     <div className="term__inner" onKeyDown={handleKeyDown}>
@@ -389,27 +382,39 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
       </div>
 
       <div className="term__bar">
-        <span className="term__attempts">{'>'}INTENTOS: {remaining}</span>
+        <span className="term__attempts">
+          {'>'}PRUEBAS: {remaining}/{allowed}
+        </span>
         <span className="term__blocks" aria-hidden="true">
-          {Array.from({ length: MAX_ATTEMPTS }, (_, i) => (
+          {Array.from({ length: allowed }, (_, i) => (
             <i key={i} data-on={i < remaining || undefined} />
           ))}
         </span>
         <span className="term__progress">
-          CLAVE {game.wordLen} · {open} LIBRE{open === 1 ? '' : 'S'}
+          CLAVE {game.wordLen} · {confirmed} FIJAS
         </span>
       </div>
 
+      {/* The word on trial. FNV shows it one position at a time, with the
+          confirmed letters lit and the last guess's misses in red. It is the
+          only place the player can read the result back, so it gets its own
+          row above the board. */}
       <div className="term__slots" aria-live="polite">
         <span className="term__slots-caret" aria-hidden="true">
           {'>'}
         </span>
-        {game.selection.map((cell, slot) => (
+        {game.trial.map((cell, slot) => (
           <span
             key={slot}
             className="term__slot"
             data-state={
-              cell === null ? 'empty' : game.locked.has(slot) ? 'locked' : 'picked'
+              cell === null
+                ? 'empty'
+                : game.locked.has(slot)
+                  ? 'locked'
+                  : game.rejected.has(slot)
+                    ? 'rejected'
+                    : 'picked'
             }
           >
             {cell?.char ?? '·'}
@@ -417,11 +422,11 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
         ))}
         <button
           type="button"
-          className="pip-btn term__submit"
-          onClick={handleSubmit}
-          disabled={game.phase !== 'playing' || !complete}
+          className="pip-btn term__clear"
+          onClick={handleClearMarks}
+          disabled={game.rejected.size === 0}
         >
-          DESCIFRAR
+          LIMPIAR
         </button>
       </div>
 
@@ -438,7 +443,8 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
                   key={`${line.column}-${line.row}`}
                   line={line}
                   game={game}
-                  onSelect={handleSelect}
+                  onTryWord={handleTryWord}
+                  onDud={handleDud}
                 />
               ))}
           </div>
@@ -454,9 +460,9 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
           ))}
         </div>
         <div className="term__hints">
-          <span>CLIC = SELECCIONAR</span>
-          <span>ENTER DESCIFRAR</span>
-          <span>BACKSPACE BORRA</span>
+          <span>CLIC PALABRA = PROBAR</span>
+          <span>CLIC ( ) = DESBLOQUEO</span>
+          <span>BACKSPACE LIMPIA</span>
           <span>N NUEVO</span>
         </div>
       </div>
@@ -496,72 +502,87 @@ function HackGame({ difficultyId, buckets, cols, rows, memoryRef }: HackGameProp
 /* ==========================================================================
    A single memory line
 
-   Drawn group by group, never character by character, because the group is
-   what the player aims at: a candidate word lights up whole when the pointer
-   is over any one of its letters. Every cell is a button and every cell is
-   the same colour — the words are only findable by reading the dump.
+   Drawn group by group, and each group is ONE button. That is the whole
+   interaction change: a candidate word and a bracket pair are single units
+   that light up whole under the pointer, the way a bracket pair already did,
+   and one click on a word is one complete guess.
+
+   The noise is not a button at all. There are around two thousand characters
+   on a board and only up to fifteen words in them, so making every character
+   focusable and clickable bought nothing and cost a thousand tab stops.
+
+   Every character on the board is still the SAME colour, because that is what
+   makes the words a search instead of a multiple-choice question.
    ========================================================================== */
 
 interface BoardLineProps {
   line: Line
   game: Game
-  onSelect: (cell: Cell, dudId: string | null) => void
+  onTryWord: (wordIndex: number) => void
+  onDud: (dudId: string) => void
 }
 
-function BoardLine({ line, game, onSelect }: BoardLineProps) {
-  const cellButton = (cell: Cell, dudId: string | null) => {
-    // Identity, not char equality: two candidates can share a letter, and
-    // character comparison would light up cells nobody ever touched.
-    const slot = game.selection.indexOf(cell)
-    const selected = slot >= 0
-    const locked = selected && game.locked.has(slot)
-    const rejected = selected && game.rejected.has(slot)
-    const dudUsed = dudId !== null && game.usedDuds.has(dudId)
-
-    return (
-      <button
-        key={cell.id}
-        type="button"
-        className="term__cell"
-        data-selected={selected || undefined}
-        data-locked={locked || undefined}
-        data-rejected={rejected || undefined}
-        disabled={game.phase !== 'playing' || dudUsed}
-        onClick={() => onSelect(cell, dudId)}
-        aria-label={dudId !== null ? 'Desbloqueo' : `Carácter ${cell.char}`}
-      >
-        {cell.char}
-      </button>
-    )
-  }
-
+function BoardLine({ line, game, onTryWord, onDud }: BoardLineProps) {
   return (
     <div className="term__line">
       <span className="term__addr">{line.address}</span>
       <span className="term__content">
         {line.groups.map((group: Group) => {
-          if (group.kind === 'word') {
+          if (group.kind === 'noise') {
             return (
-              <span key={group.key} className="term__word">
-                {group.cells.map((cell) => cellButton(cell, null))}
+              <span key={group.key} className="term__noise">
+                {group.cells.map((cell) => (
+                  <span key={cell.id} className="term__char">
+                    {cell.char}
+                  </span>
+                ))}
               </span>
             )
           }
+
           if (group.kind === 'dud') {
+            const used = game.usedDuds.has(group.dudId)
             return (
-              <span
+              <button
                 key={group.key}
-                className="term__dud"
-                data-used={game.usedDuds.has(group.dudId) || undefined}
+                type="button"
+                className="term__cell term__dud"
+                data-used={used || undefined}
+                disabled={game.phase !== 'playing' || used}
+                onClick={() => onDud(group.dudId)}
+                aria-label="Desbloqueo"
               >
-                {group.cells.map((cell) => cellButton(cell, group.dudId))}
-              </span>
+                {group.cells.map((cell) => cell.char)}
+              </button>
             )
           }
+
+          /* The word on trial keeps its per-position marks, so the board
+             shows the same green and red the strip does. */
+          const onTrial = game.trialWord === group.wordIndex
+          const spent = game.tried.has(group.wordIndex)
+
           return (
-            <span key={group.key} className="term__noise">
-              {group.cells.map((cell) => cellButton(cell, null))}
-            </span>
+            <button
+              key={group.key}
+              type="button"
+              className="term__cell term__word"
+              data-tried={spent || undefined}
+              disabled={game.phase !== 'playing' || spent}
+              onClick={() => onTryWord(group.wordIndex)}
+              aria-label={`Palabra ${group.cells.map((c) => c.char).join('')}`}
+            >
+              {group.cells.map((cell, i) => (
+                <span
+                  key={cell.id}
+                  className="term__char"
+                  data-locked={onTrial && game.locked.has(i) ? true : undefined}
+                  data-rejected={onTrial && game.rejected.has(i) ? true : undefined}
+                >
+                  {cell.char}
+                </span>
+              ))}
+            </button>
           )
         })}
       </span>

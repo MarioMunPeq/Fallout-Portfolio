@@ -14,12 +14,14 @@
      Both rows carry a floor. Without one they collapse to whatever was left
      over after the identity block, and on a phone the ESTADO block was left
      with about twenty pixels — which is how four condition cells ended up
-     printed on top of each other. The lower floor is the height of the ESTADO
-     block itself: its padding and title plus two rows of cells at their
-     minimum (see .conditions). A floor that does not fit turns into a scroll
-     (see `overflow-y` below) rather than into clipped, overlapping text. On a
-     screen with room every floor is below the fr share and nothing moves. */
-  grid-template-rows: auto minmax(calc(var(--u) * 15), 1.55fr)
+     printed on top of each other. The floors below are the real content
+     heights: the S.P.E.C.I.A.L. rows are sized to their cells, and the lower
+     floor is the ESTADO block itself — its padding and title plus two rows of
+     cells at their minimum (see .conditions). A floor that does not fit turns
+     into a scroll (see `overflow-y` below) rather than into clipped,
+     overlapping text. On a screen with room every floor is below the fr share
+     and nothing moves. */
+  grid-template-rows: auto minmax(calc(var(--u) * 26), 1.55fr)
     minmax(calc(var(--u) * 16), 1fr);
   gap: var(--gap);
   padding: var(--pad);
@@ -106,8 +108,13 @@
 .special-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  /* Seven stats in two rows of equal height; the empty 8th slot is free. */
-  grid-auto-rows: minmax(0, 1fr);
+  /* Seven stats in two rows of equal height; the empty 8th slot is free.
+     The floor is the cell's own content: letter + lamp + value + tag + pips
+     (see .special-cell). `minmax(0, 1fr)` let a row squeeze below that, which
+     collapsed the animated lamp to zero height — the sprites disappeared
+     entirely on a phone. Content-sized rows still stretch to fill the block
+     when there is room, so on a desktop this lays out exactly as before. */
+  grid-auto-rows: minmax(calc(var(--u) * 11.5), auto);
   gap: var(--gap-sm);
   min-height: 0;
   min-width: 0;
@@ -115,8 +122,10 @@
 
 .special-cell {
   display: grid;
-  /* letter / lamp / value / tag / pips */
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  /* letter / lamp / value / tag / pips. The lamp row has a floor of its own:
+     the animated sprite is the whole point of the block and it must never be
+     the thing that gets squeezed to nothing. */
+  grid-template-rows: auto minmax(calc(var(--u) * 3.5), 1fr) auto auto auto;
   justify-items: center;
   align-content: stretch;
   gap: calc(var(--u) * 0.2);
@@ -404,11 +413,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  /* Three columns of cells means three rows instead of two, so the S.P.E.C.I.A.L.
-     floor has to cover three stacked cells, not two. Each cell is worth about
-     8.5u with its letter, value, tag and pips; the lamp takes what is left. */
+  /* Three columns of cells means three rows instead of two, so the
+     S.P.E.C.I.A.L. floor grows to match. */
   .status {
-    grid-template-rows: auto minmax(calc(var(--u) * 26), 1.55fr)
+    grid-template-rows: auto minmax(calc(var(--u) * 38), 1.55fr)
       minmax(calc(var(--u) * 16), 1fr);
   }
 }
@@ -421,7 +429,7 @@
   /* Stacked, the lower block has to hold the readout *and* the ESTADO block,
      so its floor is the sum of the two plus the gap between them. */
   .status {
-    grid-template-rows: auto minmax(calc(var(--u) * 26), 1.55fr)
+    grid-template-rows: auto minmax(calc(var(--u) * 38), 1.55fr)
       minmax(calc(var(--u) * 24), 1fr);
   }
 
