@@ -1,23 +1,23 @@
 {
-  "name": "Vault Archive · Pip-Boy 3000 (Mk I)",
-  "short_name": "Vault Archive",
+  "name": "Fallout Portfolio · Pip-Boy 3000 (Mk I)",
+  "short_name": "Fallout Portfolio",
   "description": "Portfolio dentro de un Pip-Boy 3000 (Mk I) de Fallout 3: seis módulos que funcionan de verdad.",
   "lang": "es",
   "dir": "ltr",
-  "start_url": "/Vault-Archive/",
-  "scope": "/Vault-Archive/",
+  "start_url": "/Fallout-Portfolio/",
+  "scope": "/Fallout-Portfolio/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0c0f0b",
   "theme_color": "#0c0f0b",
   "icons": [
     {
-      "src": "/Vault-Archive/icons/128.png",
+      "src": "/Fallout-Portfolio/icons/128.png",
       "sizes": "128x128",
       "type": "image/png"
     },
     {
-      "src": "/Vault-Archive/icons/256.png",
+      "src": "/Fallout-Portfolio/icons/256.png",
       "sizes": "256x256",
       "type": "image/png",
       "purpose": "any"

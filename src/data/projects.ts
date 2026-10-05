@@ -27,7 +27,7 @@ const PAGES = 'https://mariomunpeq.github.io'
 export const QUESTS: readonly Quest[] = [
   {
     id: 'vault-archive',
-    name: 'VAULT ARCHIVE',
+    name: 'FALLOUT PORTFOLIO',
     status: 'active',
     tagline: 'Portfolio dentro de un Pip-Boy 3000',
     description:
@@ -44,13 +44,13 @@ export const QUESTS: readonly Quest[] = [
       { text: 'Pulido visual y efectos CRT', completed: false },
       { text: 'Easter eggs y contenido oculto', completed: false },
     ],
-    repoUrl: `${GH}/Vault-Archive`,
-    demoUrl: `${PAGES}/Vault-Archive/`,
+    repoUrl: `${GH}/Fallout-Portfolio`,
+    demoUrl: `${PAGES}/Fallout-Portfolio/`,
     year: '2026',
   },
   {
     id: 'repository-library',
-    name: 'REPOSITORY LIBRARY',
+    name: 'STEAM PORTFOLIO',
     status: 'active',
     tagline: 'Portfolio con estética de biblioteca de videojuegos',
     description:
@@ -62,8 +62,8 @@ export const QUESTS: readonly Quest[] = [
       { text: 'Logros y progreso', completed: true },
       { text: 'Despliegue en GitHub Pages', completed: true },
     ],
-    repoUrl: `${GH}/Repository-Library`,
-    demoUrl: `${PAGES}/Repository-Library/`,
+    repoUrl: `${GH}/Steam-Portfolio`,
+    demoUrl: `${PAGES}/Steam-Portfolio/`,
     year: '2026',
   },
   {
